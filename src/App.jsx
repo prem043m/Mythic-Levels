@@ -6,7 +6,8 @@ import { Panel, Btn } from '@/components/ui'
 import Home from '@/pages/Home'
 import Awakening from '@/pages/Awakening'
 import Dashboard from '@/pages/Dashboard'
-import Arcanas from '@/pages/Arcanas'
+import Journey from '@/pages/Journey'
+import Realm from '@/pages/Realm'
 import Gate from '@/pages/Gate'
 import Plan from '@/pages/Plan'
 import Ritual from '@/pages/Ritual'
@@ -15,6 +16,7 @@ import Settings from '@/pages/Settings'
 import { VerifyEmail, ForgotPassword, ResetPassword } from '@/pages/AuthPages'
 import { useReminder } from '@/hooks/useReminder'
 import { Journal, Analytics, Profile } from '@/pages/Others'
+import WorldLayout from '@/components/WorldLayout'
 
 function Shell() {
   const { status, saveError, loadError, reset, game } = useGameStore()
@@ -34,7 +36,7 @@ function Shell() {
   return (
     <>
       {saveError && <p role="alert" className="bg-ember/20 text-ember text-center text-sm py-2">Progress could not be saved to this browser. Export your save from Profile.</p>}
-      <Outlet />
+      <WorldLayout><Outlet /></WorldLayout>
     </>
   )
 }
@@ -54,10 +56,13 @@ export default function App() {
         <Route path="/reset" element={<ResetPassword />} />
         <Route element={<Shell />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/arcanas" element={<Arcanas />} />
+          <Route path="/journey" element={<Journey />} />
+          <Route path="/journey/:arcanaId" element={<Realm />} />
+          <Route path="/arcanas" element={<Navigate to="/journey" replace />} />
           <Route path="/gate/:gateId" element={<Gate />} />
           <Route path="/ritual/:gateId" element={<Ritual />} />
-          <Route path="/plan" element={<Plan />} />
+          <Route path="/quests" element={<Plan />} />
+          <Route path="/plan" element={<Navigate to="/quests" replace />} />
           <Route path="/coach" element={<Coach />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/journal" element={<Journal />} />

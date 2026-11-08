@@ -183,6 +183,36 @@ body::before {
   background: rgba(11, 9, 20, .78);
   z-index: 20;
 }
+.world-sidebar-toggle {
+  position: fixed;
+  z-index: 25;
+  top: 84px;
+  left: 235px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--world-gold);
+  border-radius: 50%;
+  color: var(--world-gold);
+  background: #110e1c;
+  cursor: pointer;
+  transition: left .25s ease, background .2s ease;
+}
+.world-sidebar-toggle:hover { background: rgba(198,161,91,.16); }
+.sidebar-collapsed { grid-template-columns: 76px minmax(0, 1fr) 248px; }
+.sidebar-collapsed .world-sidebar { padding-left: 12px; padding-right: 12px; }
+.sidebar-collapsed .world-brand { justify-content: center; margin-left: 0; margin-right: 0; }
+.sidebar-collapsed .world-brand > span:last-child,
+.sidebar-collapsed .world-nav-label,
+.sidebar-collapsed .world-nav-item > span:last-child { display: none; }
+.sidebar-collapsed .world-nav-item { justify-content: center; padding-left: 6px; padding-right: 6px; }
+.sidebar-collapsed .world-nav-glyph { width: auto; }
+.sidebar-collapsed .world-sidebar-toggle { left: 63px; }
+.world-layout.is-dense { grid-template-columns: 248px minmax(0, 1fr); }
+.world-layout.is-dense .world-sidebar-toggle { left: 235px; }
+.world-layout.sidebar-collapsed.is-dense { grid-template-columns: 76px minmax(0, 1fr); }
+.world-layout.sidebar-collapsed.is-dense .world-sidebar-toggle { left: 63px; }
 .world-brand { display: flex; align-items: center; gap: 12px; margin: 0 10px 42px; letter-spacing: .16em; font-family: var(--font-display); color: var(--world-highlight); }
 .world-brand strong, .world-brand small { display: block; }
 .world-brand strong { font-size: 15px; }
@@ -269,11 +299,16 @@ body::before {
 @media (max-width: 1100px) {
   .world-layout { grid-template-columns: 220px minmax(0, 1fr); }
   .seeker-panel { display: none; }
+  .world-sidebar-toggle { left: 207px; }
+  .sidebar-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+  .world-layout.is-dense { grid-template-columns: 220px minmax(0, 1fr); }
+  .world-layout.sidebar-collapsed.is-dense { grid-template-columns: 76px minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
   .world-layout { display: block; padding-bottom: 62px; }
   .world-sidebar { position: fixed; left: 0; top: 0; width: 270px; transform: translateX(-105%); transition: transform .25s ease; }
   .world-sidebar.is-open { transform: translateX(0); }
+  .world-sidebar-toggle { display: none; }
   .world-header { height: 62px; padding: 0 18px; }
   .world-header-seeker span:last-child { display: none; }
   .world-content { padding: 35px 16px 50px; }

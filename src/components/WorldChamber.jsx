@@ -4,6 +4,7 @@ import { ARCANA_ORDER } from '@/config/constants'
 import { getArcana, gatesForArcana } from '@/data/catalog'
 import { Panel, Bar } from '@/components/ui'
 import { generateDailyPlan } from '@/services/quests/dailyPlan'
+import { ROUTES } from '@/config/routes'
 
 const descriptions = {
   beast: ['The Power Within', 'Volcanic will, instinct, and embodied force.'],
@@ -28,7 +29,7 @@ export function ArcanaWorldMap({ game }) {
             <strong>{descriptions[id][0]}</strong>
             <p>{descriptions[id][1]}</p>
             <div className="arcana-progress"><span>{complete} / {gates.length} gates</span><Bar value={complete / gates.length} label={`${arcana.name} progress`} /></div>
-            <Link to={`/arcanas#${id}`} className="arcana-link">{current ? 'Continue realm' : 'View realm'} <span>→</span></Link>
+            <Link to={ROUTES.realm(id)} className="arcana-link">{current ? 'Continue realm' : 'View realm'} <span>→</span></Link>
           </motion.div>
         })}
       </div>
@@ -51,6 +52,6 @@ export function DailyQuestPanel({ recommendation, game }) {
   return <Panel className="daily-quest-panel">
     <div className="panel-heading"><div><p className="world-eyebrow">Today’s quest</p><h2>{plan ? 'Your prepared practice' : recommendation.title}</h2></div><span className="quest-rune">◇</span></div>
     {plan ? <div className="quest-slots">{Object.entries(plan).filter(([key, value]) => key !== 'dateKey' && value).map(([slot, value]) => <div key={slot} className="quest-slot"><span>{slot}</span><strong>{value.title}</strong><small>{value.minutes} minutes · {value.task}</small></div>)}</div> : <p className="path-description">{recommendation.reason}</p>}
-    <Link to="/plan" className="text-link">Shape today’s practice <span>→</span></Link>
+    <Link to={ROUTES.quests} className="text-link">Shape today’s practice <span>→</span></Link>
   </Panel>
 }

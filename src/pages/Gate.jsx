@@ -10,6 +10,7 @@ import Ceremony from '@/components/Ceremony'
 import Emblem from '@/components/Emblem'
 import RubricLive from '@/components/RubricLive'
 import { Panel, H, Btn, Bar } from '@/components/ui'
+import { ROUTES } from '@/config/routes'
 
 const ERR = {
   'stage-locked': 'Finish the previous stage first.',
@@ -79,8 +80,8 @@ export default function Gate() {
   const { game, lastResult, clearResult, enter } = useGameStore()
   const gate = getGateById(gateId)
   const rec = game.progress.gates[gateId]
-  if (!gate) return <Navigate to="/arcanas" replace />
-  if (!rec?.unlocked) return <Panel><p>This Gate is locked. Complete the previous Gate first.</p><Link className="underline text-cosmic" to="/arcanas">Back to the Arcanas</Link></Panel>
+  if (!gate) return <Navigate to={ROUTES.journey} replace />
+  if (!rec?.unlocked) return <Panel><p>This Gate is locked. Complete the previous Gate first.</p><Link className="underline text-cosmic" to={ROUTES.journey}>Back to the World Tree</Link></Panel>
 
   const { mastery, signals, evaluation } = getGateMastery(game, gateId)
   const spec = ritualSpec(gate)
