@@ -8,8 +8,10 @@ import { getGateMastery } from '@/services/progression/engine'
 import { ritualSpec, ritualResult, liveAttempt } from '@/services/progression/ritual'
 import Ceremony from '@/components/Ceremony'
 import Emblem from '@/components/Emblem'
+import { GateEmblem } from '@/components/ProgressionIdentity'
 import RubricLive from '@/components/RubricLive'
 import { Panel, H, Btn, Bar } from '@/components/ui'
+import { ROUTES } from '@/config/routes'
 
 const ERR = {
   'stage-locked': 'Finish the previous stage first.',
@@ -79,8 +81,8 @@ export default function Gate() {
   const { game, lastResult, clearResult, enter } = useGameStore()
   const gate = getGateById(gateId)
   const rec = game.progress.gates[gateId]
-  if (!gate) return <Navigate to="/arcanas" replace />
-  if (!rec?.unlocked) return <Panel><p>This Gate is locked. Complete the previous Gate first.</p><Link className="underline text-cosmic" to="/arcanas">Back to the Arcanas</Link></Panel>
+  if (!gate) return <Navigate to={ROUTES.journey} replace />
+  if (!rec?.unlocked) return <Panel><p>This Gate is locked. Complete the previous Gate first.</p><Link className="underline text-cosmic" to={ROUTES.journey}>Back to the World Tree</Link></Panel>
 
   const { mastery, signals, evaluation } = getGateMastery(game, gateId)
   const spec = ritualSpec(gate)
@@ -96,7 +98,9 @@ export default function Gate() {
     <div className="space-y-4">
       {lastResult && <Ceremony r={lastResult} onClose={clearResult} />}
       <Panel className={`ornate accent-${gate.arcana} accent-edge accent-glow flex gap-5 items-center`}>
-        <Emblem symbol={gate.symbol} value={mastery} size={104} label={`Mastery ${Math.round(mastery * 100)} percent`} />
+        <Emblem symbol={gate.symbol} value={mastery} size={104} label={`Mastery ${Math.round(mastery * 100)} percent`}>
+          <GateEmblem gate={gate} size="chamber" state={isCurrent ? 'active' : evaluation.status === 'COMPLETED' ? 'mastered' : 'available'} />
+        </Emblem>
         <div className="min-w-0">
           <p className="engraved text-xs accent-text">{gate.arcana} · Gate {gate.gateNumber} · {gate.archetype}</p>
           <h1 className="font-display text-3xl text-ancient">{gate.name}</h1>
