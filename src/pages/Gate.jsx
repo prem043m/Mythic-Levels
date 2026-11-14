@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { useGameStore } from '@/store/useGameStore'
 import { getGateById } from '@/data/catalog'
@@ -8,8 +8,11 @@ import { getGateMastery } from '@/services/progression/engine'
 import { ritualSpec, ritualResult, liveAttempt } from '@/services/progression/ritual'
 import Ceremony from '@/components/Ceremony'
 import Emblem from '@/components/Emblem'
+import { GateEmblem } from '@/components/ProgressionIdentity'
 import RubricLive from '@/components/RubricLive'
+import { protocolFor, narrativeOf } from '@/services/evaluation/protocol'
 import { Panel, H, Btn, Bar } from '@/components/ui'
+import { ROUTES } from '@/config/routes'
 
 const ERR = {
   'stage-locked': 'Finish the previous stage first.',
@@ -19,19 +22,54 @@ const ERR = {
 const DIM = [['practice', 'Practice'], ['consistency', 'Consistency'], ['reflection', 'Reflection'], ['application', 'Application'], ['finalTrial', 'Final ritual']]
 const BADGE = { accepted: ['Evidence accepted', 'text-cosmic'], 'needs-revision': ['Needs revision', 'text-ember'], none: ['No reflection', 'text-muted'] }
 
+const VERDICT = {
+  NEEDS_REVISION: 'Almost there. This needs a little more.',
+  INSUFFICIENT_INFORMATION: 'More detail needed before this can be assessed.',
+  REVIEW_REQUIRED: 'This could not be checked automatically.',
+}
+const EVAL_DIMS = [['actionSpecificity', 'Action'], ['taskRelevance', 'Relevance'], ['difficultyAwareness', 'Difficulty'], ['reflectionQuality', 'Reflection']]
+
+// Quality and confidence are separate: how good the account is, and how sure the evaluator is about judging it.
+function Verdict({ v, attempts }) {
+  if (!v) return null
+  return (
+    <div role="status" className="rounded-lg border border-ember/40 bg-ember/5 p-3 space-y-2">
+      <p className="text-sm font-semibold text-ember">{VERDICT[v.decision] || 'Not accepted yet.'}{attempts > 1 ? ` (attempt ${attempts})` : ''}</p>
+      <ul className="text-sm list-disc pl-5">{v.feedback.map((f) => <li key={f}>{f}</li>)}</ul>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted">
+        {EVAL_DIMS.map(([k, label]) => <div key={k} className="flex justify-between"><dt>{label}</dt><dd>{v.dimensions[k]}/100</dd></div>)}
+      </dl>
+      <p className="text-xs text-muted">Quality {v.qualityScore}/100 · evaluator confidence {Math.round(v.confidence * 100)}%. This measures how well you described what you did, not whether it happened. Nothing is lost: revise and try again.</p>
+    </div>
+  )
+}
+
 function Stage({ gate, day, rec, ev, available, limitReached }) {
   const { complete, revise } = useGameStore()
-  const [open, setOpen] = useState(false)
+  const protocol = useMemo(() => protocolFor(day), [day])
+  const draft = rec.drafts?.[day.day]
+  const [open, setOpen] = useState(Boolean(draft))
+  const [fields, setFields] = useState(draft?.fields || {})
+  const [verdict, setVerdict] = useState(draft?.evaluation || null)
+  const [attempts, setAttempts] = useState(draft?.attempts || 0)
   const [text, setText] = useState('')
   const [err, setErr] = useState(null)
   const entry = rec.days[day.day]
   const done = Boolean(entry?.completedAt)
   const others = gate.days.filter((d) => d.day !== day.day).map((d) => rec.days[d.day]?.reflection || '')
+  const narrative = narrativeOf(fields)
+  const setField = (id, v) => setFields((p) => ({ ...p, [id]: v }))
   const submit = () => {
-    const res = complete(gate.id, day.id, text, day.durationMinutes)
-    if (!res.ok) setErr(ERR[res.error] || 'Could not complete this stage.'); else { setOpen(false); setText('') }
+    setErr(null)
+    const res = complete(gate.id, day.id, { submission: fields }, day.durationMinutes)
+    if (res.ok) { setOpen(false); setVerdict(null); return }
+    if (res.error === 'not-accepted') { setVerdict(res.evaluation); setAttempts((n) => n + 1) } else setErr(ERR[res.error] || 'Could not complete this stage.')
   }
-  const resubmit = () => { const res = revise(gate.id, day.day, text); if (res.ok) setText(''); else setErr('Could not save the revision.') }
+  const improve = () => {
+    setErr(null)
+    const res = revise(gate.id, day.day, text)
+    if (res.ok) { setText(''); setVerdict(null) } else if (res.error === 'not-accepted') setVerdict(res.evaluation); else setErr('Could not save the revision.')
+  }
   const badge = ev && BADGE[ev.status]
   return (
     <li className="relative">
@@ -41,14 +79,19 @@ function Stage({ gate, day, rec, ev, available, limitReached }) {
           <h3 className="font-display">Stage {day.day} · {day.title}</h3>
           <span className="text-xs text-muted shrink-0 capitalize">{day.phase === 'trial' ? 'integration' : day.phase}</span>
         </div>
-        {done && badge && <p className={`text-xs mt-1 ${badge[1]}`}>{badge[0]}</p>}
-        {done && ev?.status === 'needs-revision' && (
-          <div className="mt-2 space-y-2">
-            <ul className="text-sm text-muted list-disc pl-5">{ev.feedback.map((f) => <li key={f}>{f}</li>)}</ul>
-            <textarea aria-label="Revise reflection" className="w-full rounded-lg bg-obsidian-2 border border-ancient-dim/40 p-2" rows={3} value={text} onChange={(e) => setText(e.target.value)} />
-            <RubricLive text={text} gate={gate} phase={day.phase} others={others} />
-            <Btn variant="ghost" disabled={!text.trim()} onClick={resubmit}>Save revision</Btn>
-          </div>
+        {done && badge && <p className={`text-xs mt-1 ${badge[1]}`}>{badge[0]}{ev.quality != null ? ` · quality ${ev.quality}` : ''}{ev.verification ? ' · self-reported' : ''}</p>}
+        {done && (
+          <details className="mt-2 text-sm">
+            <summary className="cursor-pointer text-muted">{ev?.status === 'needs-revision' ? 'Strengthen this reflection' : 'Improve this reflection'}</summary>
+            <div className="mt-2 space-y-2">
+              {ev?.status === 'needs-revision' && <ul className="text-muted list-disc pl-5">{ev.feedback.map((f) => <li key={f}>{f}</li>)}</ul>}
+              <textarea aria-label="Revised reflection" className="w-full rounded-lg bg-obsidian-2 border border-ancient-dim/40 p-2" rows={3} value={text} onChange={(e) => setText(e.target.value)} />
+              <RubricLive text={text} gate={gate} phase={day.phase} others={others} />
+              <Verdict v={verdict} attempts={0} />
+              {err && <p role="alert" className="text-ember">{err}</p>}
+              <Btn variant="ghost" disabled={!text.trim()} onClick={improve}>Save revision</Btn>
+            </div>
+          </details>
         )}
         {available && !done && (
           <>
@@ -58,13 +101,18 @@ function Stage({ gate, day, rec, ev, available, limitReached }) {
                 <div className="mt-3 space-y-3">
                   <p>{day.task}</p>
                   {day.explanation && <p className="text-sm text-muted">{day.explanation}</p>}
-                  <label className="block text-sm">{day.prompt || 'What did this reveal?'}
-                    <textarea className="mt-1 w-full rounded-lg bg-obsidian-2 border border-ancient-dim/40 p-2" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
-                  </label>
-                  <RubricLive text={text} gate={gate} phase={day.phase} others={others} />
-                  <p className="text-xs text-muted">Confirm only once you have really done it. The reflection can be improved later.</p>
+                  {protocol.fields.map((f) => (
+                    <label key={f.id} className="block text-sm">
+                      {f.label}{f.required ? <span className="text-ember" aria-label="required"> *</span> : <span className="text-muted"> (optional)</span>}
+                      <span className="block text-xs text-muted">{f.hint}</span>
+                      <textarea className="mt-1 w-full rounded-lg bg-obsidian-2 border border-ancient-dim/40 p-2" rows={2} value={fields[f.id] || ''} onChange={(e) => setField(f.id, e.target.value)} />
+                    </label>
+                  ))}
+                  <RubricLive text={narrative} gate={gate} phase={day.phase} others={others} />
+                  <Verdict v={verdict} attempts={attempts} />
+                  <p className="text-xs text-muted">Confirm only once you have really done it. Your account is self-reported: it is checked for clarity and detail, not proven.</p>
                   {err && <p role="alert" className="text-ember text-sm">{err}</p>}
-                  <div className="flex gap-2"><Btn onClick={submit}>I did it — seal this stage</Btn><Btn variant="ghost" onClick={() => setOpen(false)}>Not yet</Btn></div>
+                  <div className="flex gap-2"><Btn onClick={submit} disabled={!narrative.trim()}>I did it — check and seal this stage</Btn><Btn variant="ghost" onClick={() => setOpen(false)}>Not yet</Btn></div>
                 </div>
               )}
           </>
@@ -79,8 +127,8 @@ export default function Gate() {
   const { game, lastResult, clearResult, enter } = useGameStore()
   const gate = getGateById(gateId)
   const rec = game.progress.gates[gateId]
-  if (!gate) return <Navigate to="/arcanas" replace />
-  if (!rec?.unlocked) return <Panel><p>This Gate is locked. Complete the previous Gate first.</p><Link className="underline text-cosmic" to="/arcanas">Back to the Arcanas</Link></Panel>
+  if (!gate) return <Navigate to={ROUTES.journey} replace />
+  if (!rec?.unlocked) return <Panel><p>This Gate is locked. Complete the previous Gate first.</p><Link className="underline text-cosmic" to={ROUTES.journey}>Back to the World Tree</Link></Panel>
 
   const { mastery, signals, evaluation } = getGateMastery(game, gateId)
   const spec = ritualSpec(gate)
@@ -96,7 +144,9 @@ export default function Gate() {
     <div className="space-y-4">
       {lastResult && <Ceremony r={lastResult} onClose={clearResult} />}
       <Panel className={`ornate accent-${gate.arcana} accent-edge accent-glow flex gap-5 items-center`}>
-        <Emblem symbol={gate.symbol} value={mastery} size={104} label={`Mastery ${Math.round(mastery * 100)} percent`} />
+        <Emblem symbol={gate.symbol} value={mastery} size={104} label={`Mastery ${Math.round(mastery * 100)} percent`}>
+          <GateEmblem gate={gate} size="chamber" state={isCurrent ? 'active' : evaluation.status === 'COMPLETED' ? 'mastered' : 'available'} />
+        </Emblem>
         <div className="min-w-0">
           <p className="engraved text-xs accent-text">{gate.arcana} · Gate {gate.gateNumber} · {gate.archetype}</p>
           <h1 className="font-display text-3xl text-ancient">{gate.name}</h1>

@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { ROUTES } from '@/config/routes'
 
 export const Panel = ({ className = '', children, ...rest }) => (
   <motion.section
@@ -58,7 +59,7 @@ export function Ring({ value, size = 104, label, children }) {
   )
 }
 
-const links = [['/dashboard', 'Dashboard'], ['/plan', 'Plan'], ['/arcanas', 'Arcanas'], ['/coach', 'Coach'], ['/journal', 'Journal'], ['/analytics', 'Analytics'], ['/profile', 'Profile'], ['/settings', 'Settings']]
+const links = [[ROUTES.world, 'Dashboard'], [ROUTES.quests, 'Plan'], [ROUTES.journey, 'Arcanas'], [ROUTES.coach, 'Coach'], [ROUTES.journal, 'Journal'], [ROUTES.analytics, 'Analytics'], [ROUTES.profile, 'Profile'], [ROUTES.settings, 'Settings']]
 
 export function Nav() {
   return (

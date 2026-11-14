@@ -5,7 +5,7 @@ import { evaluateGateCompletion } from '@/services/progression/mastery'
 import { evaluateReflection } from '@/services/progression/reflection'
 import { applyStreak } from '@/services/progression/streak'
 import { recommendNextPractice } from '@/services/progression/recommend'
-import { STAGE_TEXT, RITUAL_TEXT, JUNK, T0, newPlayer, playStages, playRitual } from './helpers'
+import { STAGE_TEXT, RITUAL_TEXT, JUNK, THIN, T0, newPlayer, playStages, playRitual } from './helpers'
 
 const gate = getGateById('beast-01')
 
@@ -113,17 +113,16 @@ describe('Gate Mastery Protocol', () => {
     const ids = e.missing.map((m) => m.id)
     for (const id of ['stages', 'days', 'reflections', 'ritual']) expect(ids).toContain(id)
   })
-  it('returns NEEDS_MORE_PRACTICE when mandatory parts pass but quality is thin, and recovers by revising', () => {
-    const texts = STAGE_TEXT.map((t, i) => ([0, 3, 6].includes(i) ? JUNK : t))
+  it('returns NEEDS_MORE_PRACTICE when mandatory parts pass but quality is thin, and recovers by improving reflections', () => {
+    const texts = STAGE_TEXT.map((t, i) => THIN[i] ?? t)
     const base = newPlayer()
-    base.settings.masteryThreshold = 0.75 // a stricter setting, to exercise the quality gate
+    base.settings.masteryThreshold = 0.88 // a stricter setting, to exercise the quality gate
     const run = playRitual(playStages(base, gate, { texts }), gate, { minutes: 36, outcome: 'no' })
     const e = evaluateGateCompletion(run.state, gate.id)
     expect(e.status).toBe('NEEDS_MORE_PRACTICE')
     expect(run.state.progress.gates[gate.id].completedAt).toBe(null)
     let s = run.state
-    let last
-    for (const d of [1, 4, 7]) { last = reviseEvidence(s, { gateId: gate.id, day: d, text: STAGE_TEXT[d - 1] }); s = last.state }
+    for (const d of [1, 4, 7]) { const r = reviseEvidence(s, { gateId: gate.id, day: d, text: STAGE_TEXT[d - 1] }); expect(r.ok).toBe(true); s = r.state }
     expect(getGateMastery(s, gate.id).mastery).toBeGreaterThan(e.mastery)
     expect(s.progress.gates[gate.id].completedAt).toBeTruthy()
   })
@@ -161,10 +160,16 @@ describe('adaptive recommendation', () => {
     expect(r.minutes).toBeLessThanOrEqual(10)
     expect(r.reason.length).toBeGreaterThan(20)
   })
-  it('points to the ritual once every stage is done, and to revision when evidence is weak', () => {
+  it('points to the ritual once every stage is done', () => {
     expect(recommendNextPractice(playStages(newPlayer(), gate), '2026-03-04').kind).toBe('ritual')
-    const weak = playStages(newPlayer(), gate, { texts: STAGE_TEXT.map((t, i) => (i === 1 ? JUNK : t)) })
-    expect(recommendNextPractice(weak, '2026-03-04').kind).toBe('revise')
+  })
+  it('keeps a rejected submission as a draft and recommends resubmitting with the feedback', () => {
+    const r = completeQuest(playStages(newPlayer(), gate, { from: 1, to: 1 }), { gateId: gate.id, questId: gate.days[1].id, reflection: JUNK, dateKey: '2026-03-02' })
+    expect(r.ok).toBe(false)
+    const rec = recommendNextPractice(r.state, '2026-03-02')
+    expect(rec.kind).toBe('stage')
+    expect(rec.context).toBe('resubmit')
+    expect(rec.reason.length).toBeGreaterThan(20)
   })
   it('stops at the daily limit and never changes state', () => {
     const s = playStages(newPlayer(), gate, { from: 1, to: 2, perDay: 2 })
