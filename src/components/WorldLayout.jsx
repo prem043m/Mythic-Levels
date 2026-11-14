@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { NavLink, Link } from 'react-router-dom'
+import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useGameStore } from '@/store/useGameStore'
 import { levelFromXp } from '@/services/progression/xp'
 import { ATTRIBUTES } from '@/config/constants'
+import { ROUTES } from '@/config/routes'
 import { Bar } from '@/components/ui'
 
 const primary = [
   ['/dashboard', 'The World', 'Current state', '◈'],
-  ['/arcanas', 'The Journey', 'Three Arcanas · 27 Gates', '✦'],
-  ['/plan', 'The Quests', 'Daily practice', '◇'],
+  [ROUTES.journey, 'The Journey', 'Three Arcanas · 27 Gates', '✦'],
+  [ROUTES.quests, 'The Quests', 'Daily practice', '◇'],
 ]
 const inner = [
   ['/journal', 'The Chronicle', 'Journal', '▧'],
@@ -26,7 +27,7 @@ function NavGroup({ title, links, onNavigate }) {
     <div className="world-nav-group">
       <p className="world-nav-label">{title}</p>
       {links.map(([to, label, subtitle, glyph]) => (
-        <NavLink key={to} to={to} onClick={onNavigate} className={({ isActive }) => `world-nav-item ${isActive ? 'is-active' : ''}`}>
+        <NavLink key={to} to={to} title={label} onClick={onNavigate} className={({ isActive }) => `world-nav-item ${isActive ? 'is-active' : ''}`}>
           <span className="world-nav-glyph" aria-hidden="true">{glyph}</span>
           <span><strong>{label}</strong><small>{subtitle}</small></span>
         </NavLink>
@@ -52,7 +53,7 @@ export function WorldSidebar({ open, onClose }) {
   )
 }
 
-export function WorldHeader({ onMenu }) {
+export function WorldHeader({ onMenu, onProfile }) {
   const game = useGameStore((s) => s.game)
   const player = game?.player
   const level = player ? levelFromXp(player.xp) : null
@@ -61,7 +62,7 @@ export function WorldHeader({ onMenu }) {
       <button className="world-menu md:hidden" onClick={onMenu} aria-label="Open navigation">☰</button>
       <div className="world-header-spacer" />
       <button className="world-notification" aria-label="Notifications">◌<span /></button>
-      {player && <Link to="/profile" className="world-header-seeker">
+      {player && <Link to="/profile" onClick={onProfile} className="world-header-seeker">
         <span className="world-avatar">{player.avatar === 'lantern' ? '✦' : player.avatar === 'quill' ? '✐' : '◈'}</span>
         <span><strong>{player.name}</strong><small>Level {level.level}</small></span>
       </Link>}
@@ -100,22 +101,44 @@ export function SeekerPanel() {
   )
 }
 
+const shelllessPaths = ['/ritual/', '/verify', '/forgot', '/reset', '/awakening']
+
+function isShellless(pathname) {
+  return shelllessPaths.some((path) => path.endsWith('/') ? pathname.startsWith(path) : pathname === path)
+}
+
+function isDense(pathname) {
+  return pathname === '/settings' || pathname === '/quests' || pathname === '/journal' || pathname.startsWith('/ritual/')
+}
+
 export function WorldLayout({ children }) {
   const [menu, setMenu] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const location = useLocation()
+  if (isShellless(location.pathname)) return children || <Outlet />
   return (
-    <div className="world-layout">
+    <div className={`world-layout ${collapsed ? 'sidebar-collapsed' : ''} ${isDense(location.pathname) ? 'is-dense' : ''}`}>
       <WorldSidebar open={menu} onClose={() => setMenu(false)} />
       <div className="world-stage">
-        <WorldHeader onMenu={() => setMenu(true)} />
-        <main className="world-content">{children}</main>
+        <WorldHeader onMenu={() => setMenu(true)} onProfile={() => setMenu(false)} />
+        <main className="world-content">{children || <Outlet />}</main>
       </div>
-      <SeekerPanel />
+      {!isDense(location.pathname) && <SeekerPanel />}
       <nav className="world-bottom-nav" aria-label="Mobile navigation">
         <NavLink to="/dashboard"><span>◈</span>World</NavLink>
-        <NavLink to="/arcanas"><span>✦</span>Journey</NavLink>
-        <NavLink to="/plan"><span>◇</span>Quests</NavLink>
+        <NavLink to={ROUTES.journey}><span>✦</span>Journey</NavLink>
+        <NavLink to={ROUTES.quests}><span>◇</span>Quests</NavLink>
         <NavLink to="/profile"><span>♙</span>Player</NavLink>
       </nav>
+      <button
+        type="button"
+        className="world-sidebar-toggle"
+        onClick={() => setCollapsed((value) => !value)}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!collapsed}
+      >
+        {collapsed ? '›' : '‹'}
+      </button>
     </div>
   )
 }

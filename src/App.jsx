@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { MotionConfig } from 'framer-motion'
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useGameStore } from '@/store/useGameStore'
@@ -6,7 +6,8 @@ import { Panel, Btn } from '@/components/ui'
 import Home from '@/pages/Home'
 import Awakening from '@/pages/Awakening'
 import Dashboard from '@/pages/Dashboard'
-import Arcanas from '@/pages/Arcanas'
+import Journey from '@/pages/Journey'
+import Realm from '@/pages/Realm'
 import Gate from '@/pages/Gate'
 import Plan from '@/pages/Plan'
 import Ritual from '@/pages/Ritual'
@@ -15,6 +16,12 @@ import Settings from '@/pages/Settings'
 import { VerifyEmail, ForgotPassword, ResetPassword } from '@/pages/AuthPages'
 import { useReminder } from '@/hooks/useReminder'
 import { Journal, Analytics, Profile } from '@/pages/Others'
+import WorldLayout from '@/components/WorldLayout'
+
+const isDevelopment = import.meta.env.MODE === 'development'
+const EvaluationLab = isDevelopment
+  ? lazy(() => import(/* @vite-ignore */ '/src/pages/EvaluationLab.jsx'))
+  : null
 
 function Shell() {
   const { status, saveError, loadError, reset, game } = useGameStore()
@@ -34,7 +41,7 @@ function Shell() {
   return (
     <>
       {saveError && <p role="alert" className="bg-ember/20 text-ember text-center text-sm py-2">Progress could not be saved to this browser. Export your save from Profile.</p>}
-      <Outlet />
+      <WorldLayout><Outlet /></WorldLayout>
     </>
   )
 }
@@ -42,11 +49,13 @@ function Shell() {
 export default function App() {
   const load = useGameStore((s) => s.load)
   const status = useGameStore((s) => s.status)
-  useEffect(() => { load() }, [load])
+  const evaluationLabOnly = isDevelopment && window.location.hash === '#/evaluation-test'
+  useEffect(() => { if (!evaluationLabOnly) load() }, [load, evaluationLabOnly])
   return (
     <MotionConfig reducedMotion="user">
     <HashRouter>
       <Routes>
+        {isDevelopment && <Route path="/evaluation-test" element={<Suspense fallback={<p className="p-8 text-muted">Opening evaluation lab…</p>}><EvaluationLab /></Suspense>} />}
         <Route path="/" element={status === 'ready' ? <Navigate to="/dashboard" replace /> : <Home />} />
         <Route path="/awakening" element={status === 'ready' ? <Navigate to="/dashboard" replace /> : <Awakening />} />
         <Route path="/verify" element={<VerifyEmail />} />
@@ -54,10 +63,13 @@ export default function App() {
         <Route path="/reset" element={<ResetPassword />} />
         <Route element={<Shell />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/arcanas" element={<Arcanas />} />
+          <Route path="/journey" element={<Journey />} />
+          <Route path="/journey/:arcanaId" element={<Realm />} />
+          <Route path="/arcanas" element={<Navigate to="/journey" replace />} />
           <Route path="/gate/:gateId" element={<Gate />} />
           <Route path="/ritual/:gateId" element={<Ritual />} />
-          <Route path="/plan" element={<Plan />} />
+          <Route path="/quests" element={<Plan />} />
+          <Route path="/plan" element={<Navigate to="/quests" replace />} />
           <Route path="/coach" element={<Coach />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/journal" element={<Journal />} />

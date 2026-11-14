@@ -3,7 +3,8 @@ import { getGateById, getGateByPosition, getQuest } from '@/data/catalog'
 import { createGateProgress, createPlayer, createProgress, createSettings, emptyAttributes } from '@/domain/models'
 import { evaluateAchievements, evaluateTitles } from '@/services/progression/achievements'
 import { evaluateGateCompletion } from '@/services/progression/mastery'
-import { evaluateReflection } from '@/services/progression/reflection'
+import { evaluateSubmission, toEvidence, scaleAttributes, summarize, DECISION } from '@/services/evaluation/engine'
+import { normalizeFields } from '@/services/evaluation/protocol'
 import { GMP } from '@/config/gmp'
 import { applyRitualAction } from '@/services/progression/ritual'
 import { applyStreak } from '@/services/progression/streak'
@@ -140,7 +141,7 @@ export function getGateMastery(state, gateId) {
   return { mastery: evaluation.mastery, signals: evaluation.signals, evaluation }
 }
 
-export function completeQuest(state, { questId, gateId, reflection, durationMinutes, dateKey, viaRitual }) {
+export function completeQuest(state, { questId, gateId, reflection, submission, proposal, durationMinutes, dateKey, viaRitual }) {
   const next = clone(state)
   const found = getQuest(gateId, questId)
   if (!found) {
@@ -157,7 +158,8 @@ export function completeQuest(state, { questId, gateId, reflection, durationMinu
     return { ok: false, error: 'locked-gate', state }
   }
 
-  const text = sanitizePlainText(reflection || '')
+  let text = sanitizePlainText(reflection || '')
+  let stageEval = null
   const minutes = Math.max(0, Number(durationMinutes) || found.quest.durationMinutes || 0)
   const difficulty = next.settings.difficulty || 'standard'
 
@@ -187,6 +189,19 @@ export function completeQuest(state, { questId, gateId, reflection, durationMinu
     if (found.gate.days.filter((d) => gateRecord.days[d.day]?.completedDate === dayKey).length >= GMP.maxStagesPerDay) {
       return { ok: false, error: 'daily-stage-limit', state }
     }
+    // Evaluate BEFORE any reward or progress is applied. Only an ACCEPTED evaluation completes the stage.
+    const fields = normalizeFields(submission, sanitizePlainText)
+    const others = found.gate.days.filter((d) => d.day !== day.day).map((d) => gateRecord.days[d.day]?.reflection || '')
+    stageEval = evaluateSubmission({ gate: found.gate, day, fields: fields || { reflection: text }, legacy: !fields, others, proposal })
+    if (stageEval.decision !== DECISION.ACCEPTED) {
+      const prev = gateRecord.drafts?.[day.day]
+      ;(gateRecord.drafts ||= {})[day.day] = { fields: fields || { reflection: text }, evaluation: summarize(stageEval), attempts: (prev?.attempts || 0) + 1, updatedAt: new Date().toISOString() }
+      pushEvent(next.progress, { type: 'SUBMISSION_EVALUATED', gateId, day: day.day, decision: stageEval.decision, quality: stageEval.qualityScore, confidence: stageEval.confidence })
+      return { ok: false, error: 'not-accepted', decision: stageEval.decision, evaluation: summarize(stageEval), state: next }
+    }
+    text = stageEval.narrative
+    const attempts = (gateRecord.drafts?.[day.day]?.attempts || 0) + 1
+    if (gateRecord.drafts) delete gateRecord.drafts[day.day]
     if (!gateRecord.startedAt) gateRecord.startedAt = new Date().toISOString()
     gateRecord.days[day.day] = {
       completedAt: new Date().toISOString(),
@@ -195,12 +210,15 @@ export function completeQuest(state, { questId, gateId, reflection, durationMinu
       phase: day.phase,
       questId: day.id,
       minutes,
-      evidence: evaluateReflection(text, { gate: found.gate, phase: day.phase, others: found.gate.days.map((d) => gateRecord.days[d.day]?.reflection || '') }),
+      evidence: toEvidence(stageEval),
+      attempts,
+      ...(fields ? { submission: fields } : {}),
     }
   }
 
   const applied = applyRewards(next.player, found.quest.rewards, difficulty)
-  addAttributes(next.player.attributes, found.quest.attributes)
+  // Attribute development follows demonstrated quality; XP and resources stay participation-based.
+  addAttributes(next.player.attributes, stageEval ? scaleAttributes(found.quest.attributes, stageEval.qualityScore) : found.quest.attributes)
   gateRecord.mp += found.quest.rewards?.mp || 0
 
   next.progress.questsCompleted += 1
@@ -263,6 +281,7 @@ export function completeQuest(state, { questId, gateId, reflection, durationMinu
     mastery,
     signals,
     evaluation,
+    submissionEvaluation: stageEval && summarize(stageEval),
     unlockedGate,
     achievements: newAchievements,
     titles: newTitles,
@@ -341,17 +360,18 @@ function resultFrom(next, settled) {
 export function reviseEvidence(state, { gateId, day, text }) {
   const gate = getGateById(gateId)
   if (!gate || !state.progress.gates[gateId]?.days?.[day]?.completedAt) return { ok: false, error: 'missing-stage', state }
-  const next = clone(state)
-  const record = next.progress.gates[gateId]
   const stage = gate.days.find((d) => d.day === day)
   const clean = sanitizePlainText(text || '')
-  const others = gate.days.filter((d) => d.day !== day).map((d) => record.days[d.day]?.reflection || '')
-  record.days[day] = { ...record.days[day], reflection: clean, evidence: evaluateReflection(clean, { gate, phase: stage.phase, others }), revisedAt: new Date().toISOString(), revisedDate: todayKey() }
+  const others = gate.days.filter((d) => d.day !== day).map((d) => state.progress.gates[gateId].days[d.day]?.reflection || '')
+  const result = evaluateSubmission({ gate, day: stage, fields: { reflection: clean }, legacy: true, others })
+  if (result.decision !== DECISION.ACCEPTED) return { ok: false, error: 'not-accepted', decision: result.decision, evaluation: summarize(result), state }
+  const next = clone(state)
+  const record = next.progress.gates[gateId]
+  record.days[day] = { ...record.days[day], reflection: result.narrative, evidence: toEvidence(result), revisedAt: new Date().toISOString(), revisedDate: todayKey() }
   const entry = next.progress.reflections.find((r) => r.questId === stage.id)
-  if (entry) Object.assign(entry, { text: clean, updatedAt: new Date().toISOString() })
-  else if (clean.length >= 12) next.progress.reflections.unshift({ id: createId('reflection'), gateId, questId: stage.id, text: clean, at: new Date().toISOString(), dateKey: todayKey() })
-  pushEvent(next.progress, { type: 'REFLECTION_REVISED', gateId, day })
-  return { ...resultFrom(next, settle(next, gate, record)), evidence: record.days[day].evidence }
+  if (entry) Object.assign(entry, { text: result.narrative, updatedAt: new Date().toISOString() })
+  pushEvent(next.progress, { type: 'REFLECTION_REVISED', gateId, day, quality: result.qualityScore })
+  return { ...resultFrom(next, settle(next, gate, record)), evidence: record.days[day].evidence, submissionEvaluation: summarize(result) }
 }
 
 /**

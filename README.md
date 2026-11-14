@@ -51,3 +51,8 @@ The STARTTLS/TLS code paths are implemented but have not been exercised against 
 A Gate is mastered through evidence, not a click: seven stages with structured reflections, real-world action, practice across several days, and a final ritual (an immersive, recoverable, timed sitting with observation and self-assessment).
 See `docs/ALGORITHMS.md` for every algorithm, where it lives, why it was chosen, and its limits. All tunable numbers are in `src/config/gmp.js`.
 Tests: `npm test` (Vitest, includes `src/test/gmp.test.js`) and `npm run test:server`.
+
+## Action evaluation (V5)
+Stages are submitted through a guided protocol and evaluated before anything is rewarded (four outcomes, quality and confidence kept separate, an AI proposal can never grant XP or unlock anything).
+Adaptive recommendations rank candidates under hard constraints with bounded difficulty adaptation.
+See `docs/EVALUATION_AND_ADAPTIVE_IMPLEMENTATION.md`. Calibration: `src/test/calibration/`.

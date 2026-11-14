@@ -44,11 +44,14 @@ export const useGameStore = create((set, get) => ({
     }
   },
   awaken(input) { get().commit(createInitialState(input)) },
-  complete(gateId, questId, reflection, durationMinutes) {
+  // `input` is a guided submission ({ submission: {...} }) or, for older callers, a plain reflection string.
+  complete(gateId, questId, input, durationMinutes) {
     const { game, commit } = get()
+    const payload = typeof input === 'string' ? { reflection: input } : input
     // Date always comes from the local clock, never from the UI.
-    const res = completeQuest(game, { gateId, questId, reflection, durationMinutes, dateKey: todayKey() })
+    const res = completeQuest(game, { gateId, questId, ...payload, durationMinutes, dateKey: todayKey() })
     if (res.ok) { commit(res.state); set({ lastResult: res }) }
+    else if (res.error === 'not-accepted') commit(res.state) // keep the draft so feedback and attempts survive a reload
     return res
   },
   enter(gateId) {

@@ -5,6 +5,7 @@ import { getGateById } from '@/data/catalog'
 import { ritualSpec, liveAttempt, activeMs } from '@/services/progression/ritual'
 import RubricLive from '@/components/RubricLive'
 import { Ring, Btn } from '@/components/ui'
+import { ROUTES } from '@/config/routes'
 
 const ERR = {
   'too-short': (r) => `You have ${r.minutes} of the ${r.needed} active minutes this ritual needs. Keep going; nothing is lost.`,
@@ -29,7 +30,7 @@ export default function Ritual() {
 
   const gate = getGateById(gateId)
   const rec = game.progress.gates[gateId]
-  if (!gate || !rec?.unlocked) return <Navigate to="/arcanas" replace />
+  if (!gate || !rec?.unlocked) return <Navigate to={ROUTES.journey} replace />
   const spec = ritualSpec(gate)
   const stagesDone = gate.days.every((d) => rec.days[d.day]?.completedAt)
   const attempt = liveAttempt(rec.ritual)
