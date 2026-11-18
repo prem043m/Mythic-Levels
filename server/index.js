@@ -4,6 +4,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { openDb } from './db.js'
 import { registerUser, verifyUser, issueToken, userFromAuth, revoke, createEmailToken, createVerificationChallenge, verificationResendAllowed, allowVerificationRetry, consumeVerificationCode, consumeVerificationLink, consumeEmailToken, markVerified, setPassword, setEmail, findByEmail, getUser, validPassword } from './auth.js'
+import { requireOtpVerifierSecret, resolveSessionTtlSeconds } from './securityConfig.js'
 import { createEmailProvider, assertEmailConfig, EmailDeliveryError } from './emailService.js'
 import * as tpl from './emailTemplates.js'
 import { search } from './coach/retriever.js'
@@ -12,24 +13,50 @@ import { validateLoadedState } from '@/services/progression/engine'
 
 const MAX_BODY = 2 * 1024 * 1024
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' }
+const API_INDEX = {
+  service: 'MYTHIC LEVELS API',
+  apiBase: '/api',
+  endpoints: [
+    { method: 'GET', path: '/api/health', access: 'public', description: 'Check API availability.' },
+    { method: 'POST', path: '/api/auth/register', access: 'public', description: 'Create an account.' },
+    { method: 'POST', path: '/api/auth/login', access: 'public', description: 'Sign in.' },
+    { method: 'POST', path: '/api/auth/verify', access: 'public', description: 'Verify an email link.' },
+    { method: 'POST', path: '/api/auth/forgot', access: 'public', description: 'Request a password reset.' },
+    { method: 'POST', path: '/api/auth/reset', access: 'public', description: 'Reset a password.' },
+    { method: 'POST', path: '/api/auth/logout', access: 'bearer', description: 'Sign out.' },
+    { method: 'GET', path: '/api/me', access: 'bearer', description: 'Get the signed-in account.' },
+    { method: 'POST', path: '/api/auth/verify-otp', access: 'bearer', description: 'Verify an email code.' },
+    { method: 'POST', path: '/api/auth/resend', access: 'bearer', description: 'Resend an email verification link.' },
+    { method: 'POST', path: '/api/auth/email', access: 'bearer', description: 'Set an account email.' },
+    { method: 'GET', path: '/api/save', access: 'bearer', description: 'Get the account save.' },
+    { method: 'PUT', path: '/api/save', access: 'bearer', description: 'Update the account save.' },
+    { method: 'POST', path: '/api/coach', access: 'verified-bearer', description: 'Ask the Coach a question.' },
+  ],
+}
 
 const send = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
   res.end(JSON.stringify(body))
 }
+const requestError = (status, code) => Object.assign(new Error(code), { status, code, requestError: true })
 async function readJson(req) {
   let size = 0
   const chunks = []
   for await (const c of req) {
     size += c.length
-    if (size > MAX_BODY) throw Object.assign(new Error('too-large'), { status: 413 })
+    if (size > MAX_BODY) throw requestError(413, 'too-large')
     chunks.push(c)
   }
-  try { return JSON.parse(Buffer.concat(chunks).toString() || '{}') } catch { throw Object.assign(new Error('bad-json'), { status: 400 }) }
+  let value
+  try { value = JSON.parse(Buffer.concat(chunks).toString() || '{}') } catch { throw requestError(400, 'bad-json') }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw requestError(400, 'invalid-request-body')
+  return value
 }
 
-export function createApp({ db = openDb(), staticDir, mailer = null, emailProvider = null, appUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.APP_URL || 'http://localhost:5173', authLimit = 20 } = {}) {
+export function createApp({ db = openDb(), staticDir, mailer = null, emailProvider = null, appUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.APP_URL || 'http://localhost:5173', authLimit = 20, sessionTtlSeconds = resolveSessionTtlSeconds(), otpVerifierSecret = process.env.OTP_VERIFIER_SECRET } = {}) {
   if (process.env.NODE_ENV === 'production') assertEmailConfig()
+  sessionTtlSeconds = resolveSessionTtlSeconds(sessionTtlSeconds)
+  otpVerifierSecret = requireOtpVerifierSecret(otpVerifierSecret)
   const delivery = emailProvider || mailer || createEmailProvider()
   const attempts = new Map()
   const limited = (ip) => {
@@ -42,7 +69,7 @@ export function createApp({ db = openDb(), staticDir, mailer = null, emailProvid
   const mail = async (to, msg) => delivery.send({ to, ...msg })
   const deliveryInfo = (r = {}) => ({ provider: r.provider || delivery.kind || 'unknown', status: r.status || 'accepted', messageId: r.messageId || null })
   const sendVerification = (u) => {
-    const challenge = createVerificationChallenge(db, u.userId)
+    const challenge = createVerificationChallenge(db, u.userId, undefined, otpVerifierSecret)
     const verificationLink = link('verify', challenge.linkToken)
     return mail(u.email, tpl.verifyEmail({ name: u.username, link: verificationLink, otp: challenge.otp }))
   }
@@ -53,6 +80,7 @@ export function createApp({ db = openDb(), staticDir, mailer = null, emailProvid
     try {
       const url = new URL(req.url, 'http://x')
       const route = `${req.method} ${url.pathname}`
+      if (route === 'GET /' || route === 'GET /api') return send(res, 200, API_INDEX)
       if (!url.pathname.startsWith('/api/')) return serveStatic(staticDir, url.pathname, res)
       if (route === 'GET /api/health') return send(res, 200, { ok: true })
 
@@ -70,9 +98,9 @@ export function createApp({ db = openDb(), staticDir, mailer = null, emailProvid
               const category = error instanceof EmailDeliveryError ? error.category : 'unknown'
               return send(res, 503, { error: 'email-delivery-failed', category })
             }
-            return send(res, 200, { token: issueToken(db, r.userId), ...me(r), emailDelivery: deliveryInfo(emailDelivery) })
+            return send(res, 200, { token: issueToken(db, r.userId, sessionTtlSeconds), ...me(r), emailDelivery: deliveryInfo(emailDelivery) })
           }
-          return send(res, 200, { token: issueToken(db, r.userId), ...me(r) })
+          return send(res, 200, { token: issueToken(db, r.userId, sessionTtlSeconds), ...me(r) })
         }
         if (route.endsWith('/forgot')) { // same response whether or not the account exists
           const u = findByEmail(db, body.email)
@@ -103,7 +131,7 @@ export function createApp({ db = openDb(), staticDir, mailer = null, emailProvid
       if (route === 'GET /api/me') return send(res, 200, me(user))
       if (route === 'POST /api/auth/verify-otp') {
         if (limited(req.socket.remoteAddress)) return send(res, 429, { error: 'too-many-attempts' })
-        const result = consumeVerificationCode(db, user.userId, (await readJson(req)).code)
+        const result = consumeVerificationCode(db, user.userId, (await readJson(req)).code, otpVerifierSecret)
         if (!result.ok) return send(res, result.error === 'too-many-attempts' ? 429 : 400, { error: result.error })
         return send(res, 200, { ok: true, verified: true })
       }
@@ -168,8 +196,9 @@ export function createApp({ db = openDb(), staticDir, mailer = null, emailProvid
         return send(res, 200, { ...(await provider.answer({ question: q, passages: search(q, { gateId }), context: { gateId } })), provider: provider.name })
       }
       return send(res, 404, { error: 'not-found' })
-    } catch (e) {
-      return send(res, e.status || 500, { error: e.status ? e.message : 'server-error' })
+    } catch (error) {
+      if (error?.requestError) return send(res, error.status, { error: error.code })
+      return send(res, 500, { error: 'server-error' })
     }
   }
 }

@@ -1,0 +1,234 @@
+{
+  "version": "human-evaluation-v1",
+  "quest": {
+    "title": "The First Resistance",
+    "gateId": "human-03",
+    "gate": "The Compass of Discipline",
+    "stage": "Challenge",
+    "phase": "challenge",
+    "objective": "Complete a focused 20-minute study session without checking your phone.",
+    "prompt": "What did you learn, or what will you change next time?"
+  },
+  "submissions": [
+    {
+      "id": "H01",
+      "group": "Strong",
+      "fields": {
+        "situation": "At my desk this morning.",
+        "action": "I studied for 20 minutes and kept my phone in another room.",
+        "difficulty": "I wanted to check messages twice.",
+        "outcome": "I completed the planned study session.",
+        "reflection": "I learned that keeping my phone away reduced distractions. Next time I will prepare my study space before starting."
+      }
+    },
+    {
+      "id": "H02",
+      "group": "Strong",
+      "fields": {
+        "situation": "During my evening study session.",
+        "action": "I set a 20-minute timer and worked on my programming assignment without opening social media.",
+        "difficulty": "I felt the urge to check notifications.",
+        "outcome": "I completed two programming problems.",
+        "reflection": "I realised that starting with a small time commitment makes it easier to focus."
+      }
+    },
+    {
+      "id": "H03",
+      "group": "Strong",
+      "fields": {
+        "situation": "In the college library after lunch.",
+        "action": "I placed my phone inside my bag and revised computer networks for 20 minutes.",
+        "difficulty": "People were talking nearby, which distracted me.",
+        "outcome": "I finished revising the topic I had planned.",
+        "reflection": "I learned that choosing a quieter location is important for my concentration."
+      }
+    },
+    {
+      "id": "H04",
+      "group": "Strong",
+      "fields": {
+        "situation": "At home yesterday evening.",
+        "action": "I disabled notifications and completed a focused 20-minute session.",
+        "difficulty": "I initially wanted to switch between applications.",
+        "outcome": "I completed my assignment notes.",
+        "reflection": "I noticed that removing notifications helped me maintain attention. I will repeat this approach."
+      }
+    },
+    {
+      "id": "H05",
+      "group": "Strong",
+      "fields": {
+        "situation": "At my study table before dinner.",
+        "action": "I put my phone on silent and completed 20 minutes of mathematics practice.",
+        "difficulty": "A message notification made me curious.",
+        "outcome": "I continued studying and completed the exercises.",
+        "reflection": "I learned that I can postpone checking messages until after completing an important task."
+      }
+    },
+    {
+      "id": "H06",
+      "group": "Weak or incomplete",
+      "fields": {
+        "situation": "At home.",
+        "action": "I studied.",
+        "difficulty": "It was difficult.",
+        "outcome": "It was okay.",
+        "reflection": "I learned discipline."
+      }
+    },
+    {
+      "id": "H07",
+      "group": "Weak or incomplete",
+      "fields": {
+        "situation": "Yesterday evening.",
+        "action": "I tried to study for 20 minutes.",
+        "difficulty": "I was distracted.",
+        "outcome": "I stopped after some time.",
+        "reflection": "I will improve next time."
+      }
+    },
+    {
+      "id": "H08",
+      "group": "Weak or incomplete",
+      "fields": {
+        "situation": "At my desk.",
+        "action": "I kept my phone away.",
+        "difficulty": "",
+        "outcome": "",
+        "reflection": ""
+      }
+    },
+    {
+      "id": "H09",
+      "group": "Weak or incomplete",
+      "fields": {
+        "situation": "In my room.",
+        "action": "I studied for 20 minutes.",
+        "difficulty": "No difficulty.",
+        "outcome": "Finished.",
+        "reflection": "Good experience."
+      }
+    },
+    {
+      "id": "H10",
+      "group": "Weak or incomplete",
+      "fields": {
+        "situation": "At college.",
+        "action": "I completed my task.",
+        "difficulty": "I had some problems.",
+        "outcome": "I finished it.",
+        "reflection": "Discipline is important."
+      }
+    },
+    {
+      "id": "H11",
+      "group": "Off-topic",
+      "fields": {
+        "situation": "In my kitchen this morning.",
+        "action": "I focused on cooking dinner for 20 minutes.",
+        "difficulty": "I had difficulty chopping vegetables.",
+        "outcome": "I prepared the meal.",
+        "reflection": "I learned to organize ingredients before cooking."
+      }
+    },
+    {
+      "id": "H12",
+      "group": "Off-topic",
+      "fields": {
+        "situation": "At the gym.",
+        "action": "I exercised for 20 minutes without checking my phone.",
+        "difficulty": "The workout was tiring.",
+        "outcome": "I completed my exercise routine.",
+        "reflection": "I learned that exercise improves my physical health."
+      }
+    },
+    {
+      "id": "H13",
+      "group": "Off-topic",
+      "fields": {
+        "situation": "At home.",
+        "action": "I watched a documentary about discipline for 20 minutes.",
+        "difficulty": "Some concepts were difficult.",
+        "outcome": "I finished watching it.",
+        "reflection": "I learned that discipline is useful in life."
+      }
+    },
+    {
+      "id": "H14",
+      "group": "Off-topic",
+      "fields": {
+        "situation": "At my desk.",
+        "action": "I cleaned my computer and organized my files.",
+        "difficulty": "I had difficulty finding old files.",
+        "outcome": "I finished organizing everything.",
+        "reflection": "I learned to keep my computer organized."
+      }
+    },
+    {
+      "id": "H15",
+      "group": "Suspicious or ambiguous",
+      "fields": {
+        "situation": "At my desk yesterday.",
+        "action": "I studied for 20 minutes without checking my phone.",
+        "difficulty": "I did not face any difficulty.",
+        "outcome": "I completed my planned revision.",
+        "reflection": "I learned that preparation helps me focus."
+      }
+    },
+    {
+      "id": "H16",
+      "group": "Suspicious or ambiguous",
+      "fields": {
+        "situation": "At home yesterday.",
+        "action": "I studied for 20 minutes without using my phone.",
+        "difficulty": "I checked my phone several times.",
+        "outcome": "I completed the study session.",
+        "reflection": "I did not get distracted at all."
+      }
+    },
+    {
+      "id": "H17",
+      "group": "Suspicious or ambiguous",
+      "fields": {
+        "situation": "In the library.",
+        "action": "I completed a focused study session.",
+        "difficulty": "I faced distractions.",
+        "outcome": "I finished everything.",
+        "reflection": "I became more disciplined."
+      }
+    },
+    {
+      "id": "H18",
+      "group": "Suspicious or ambiguous",
+      "fields": {
+        "situation": "Yesterday evening.",
+        "action": "I kept my phone away and studied for 20 minutes.",
+        "difficulty": "I wanted to check messages.",
+        "outcome": "I completed the session.",
+        "reflection": "I learned that keeping my phone away helps. I will do the same tomorrow."
+      }
+    },
+    {
+      "id": "H19",
+      "group": "Adversarial and edge cases",
+      "fields": {
+        "situation": "At my desk this morning.",
+        "action": "I tried to focus, but I did not start studying.",
+        "difficulty": "I kept thinking about checking my phone.",
+        "outcome": "I stopped before beginning the task.",
+        "reflection": "I learned that I need to prepare myself before starting."
+      }
+    },
+    {
+      "id": "H20",
+      "group": "Adversarial and edge cases",
+      "fields": {
+        "situation": "At home.",
+        "action": "I studied for 20 minutes without checking my phone.",
+        "difficulty": "I felt distracted.",
+        "outcome": "I completed my session.",
+        "reflection": "I learned that focus is important."
+      }
+    }
+  ]
+}

@@ -28,11 +28,16 @@ export const HINTS = {
 const TIME = /\b(today|yesterday|tonight|this (?:morning|afternoon|evening|week)|last (?:night|week)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|noon|midnight|at \d{1,2}(?::\d{2})?\s?(?:am|pm)?|\d+\s?(?:min|mins|minutes|hours?|seconds?)|during|while|after|before)\b/i
 const CAUSE = /\b(because|trigger(?:ed|s)?|every time|each time|whenever|pattern|usually|always|tends? to|urge|impulse|noticed (?:that|how|when)|right when)\b/i
 const LEARN = /\b(learn(?:ed|t)|realiz(?:ed|e)|realis(?:ed|e)|discover(?:ed)?|next time|will (?:try|change|do|start|stop|keep|put|turn|set)|i'll|differently|instead|helped|worked|didn't work|improved|insight)\b/i
-const MENTAL = new Set(['felt', 'noticed', 'realized', 'realised', 'thought', 'wanted', 'wished', 'hoped', 'knew', 'learned', 'discovered', 'needed', 'liked', 'loved', 'hated', 'enjoyed', 'expected', 'decided'])
+const MENTAL = new Set(['felt', 'noticed', 'realized', 'realised', 'thought', 'wanted', 'wished', 'hoped', 'knew', 'learned', 'discovered', 'needed', 'liked', 'loved', 'hated', 'enjoyed', 'expected', 'decided', 'tried', 'attempted', 'planned', 'intended', 'aimed'])
 const IRREGULAR = new Set('put set left took wrote chose sat stood went ran made gave kept began said spoke got came drank ate woke slept told held read shut cut hung lit paid found built did'.split(' '))
 const GENERIC = new Set(['minute', 'day', 'task', 'write', 'today', 'tomorrow', 'session', 'time', 'real', 'one', 'new'])
+const TASK_GENERIC = new Set('activity choose complete daily do dur finish hour make minut practice put start ten twenty two three use forty will work'.split(' '))
+const EXPLICIT_PRACTICE = /\b(?:(?:did not|didn't|never)\s+check(?:ed)?\s+(?:my )?(?:phone|screen|notifications?)|without (?:checking|using) (?:my )?(?:phone|screen|notifications?)|resisted checking (?:my )?(?:phone|screen|notifications?)|resisted the urge to check|put (?:my )?phone (?:away|in another room)|turned off (?:my )?(?:phone|notifications?)|silenced (?:my )?phone|closed (?:the )?(?:extra )?tabs|returned to (?:my )?(?:task|work))\b/i
 
 const vocabCache = new WeakMap()
+const taskVocabCache = new WeakMap()
+let globalThemeTerms
+const topicTokens = (text) => tokenize(text).map((token) => token === 'focu' ? 'focus' : token)
 export function gateVocabulary(gate) {
   if (!gate) return new Set()
   if (vocabCache.has(gate)) return vocabCache.get(gate)
@@ -43,7 +48,7 @@ export function gateVocabulary(gate) {
     else if (v && typeof v === 'object') Object.values(v).forEach(walk)
   }
   walk(gate)
-  const own = new Set(tokenize(out.join(' ')).filter((t) => !GENERIC.has(t)))
+  const own = new Set(topicTokens(out.join(' ')).filter((t) => !GENERIC.has(t)))
   // Only words SPECIFIC to this Gate count as evidence of relevance: a word found in more than a third of all
   // Gates ("because", "next", "stay") says nothing about this Gate's theme. Derived from the curriculum, not hand-picked.
   const vocab = new Set([...own].filter((t) => documentFrequency(t) <= Math.floor(allGates().length / 3)))
@@ -57,7 +62,7 @@ function documentFrequency(token) {
   gateTokenSets ||= allGates().map((g) => {
     const parts = []
     ;(function walk(v) { if (typeof v === 'string') parts.push(v); else if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') Object.values(v).forEach(walk) })(g)
-    return new Set(tokenize(parts.join(' ')))
+    return new Set(topicTokens(parts.join(' ')))
   })
   return gateTokenSets.filter((s) => s.has(token)).length
 }
@@ -66,26 +71,59 @@ function actionVerbs(text) {
   const found = []
   for (const m of text.matchAll(/\bI\s+(?:(?:then|just|also|immediately|quickly|finally|simply)\s+)?([a-z]+)\b/gi)) {
     const v = m[1].toLowerCase()
+    const after = text.slice(m.index + m[0].length)
+    if (/^\s+(?:not|never)\b/i.test(after)) continue
     if (!MENTAL.has(v) && (IRREGULAR.has(v) || (v.endsWith('ed') && v.length > 3))) found.push(v)
   }
   return found
 }
 
-export function evaluateReflection(text, { gate, phase = 'practice', others = [] } = {}) {
+function taskTerms(gate) {
+  if (!gate || typeof gate !== 'object') return new Set()
+  if (taskVocabCache.has(gate)) return taskVocabCache.get(gate)
+  globalThemeTerms ||= new Set(allGates().flatMap((item) => topicTokens([
+    item.characteristic,
+    item.weakness,
+    item.capability,
+    item.principle,
+    ...(item.relatedAttributes || []),
+  ].filter(Boolean).join(' '))))
+  const terms = new Set((gate.days || [])
+    .flatMap((day) => topicTokens(`${day.objective || ''} ${day.task || ''}`))
+    .filter((token) => !globalThemeTerms.has(token) && !GENERIC.has(token) && !TASK_GENERIC.has(token)))
+  taskVocabCache.set(gate, terms)
+  return terms
+}
+
+export function evaluateReflection(text, { gate, day, phase = 'practice', others = [] } = {}) {
   const clean = String(text || '').trim()
   const keys = PHASE_KEY[phase] || PHASE_KEY.practice
   if (!clean) return { status: 'none', score: 0, criteria: {}, feedback: [], keys }
 
   const tokens = tokenize(clean)
   const unique = new Set(tokens)
+  const topicUnique = new Set(topicTokens(clean))
   const acts = actionVerbs(clean)
-  const overlap = [...unique].filter((t) => gateVocabulary(gate).has(t)).length
+  const overlap = [...topicUnique].filter((t) => gateVocabulary(gate).has(t)).length
+  const objectiveTerms = new Set(topicTokens(`${day?.objective || ''} ${day?.task || ''}`))
+  const objectiveOverlap = [...topicUnique].filter((t) => objectiveTerms.has(t)).length
+  const themeTerms = new Set(topicTokens([
+    gate?.characteristic,
+    gate?.weakness,
+    gate?.capability,
+    gate?.principle,
+    ...(gate?.relatedAttributes || []),
+  ].filter(Boolean).join(' ')))
+  const themeOverlap = [...topicUnique].filter((t) => themeTerms.has(t)).length
+  const taskOverlap = [...topicUnique].filter((t) => taskTerms(gate).has(t)).length
+  const hasTaskObjective = Boolean(day?.objective || day?.task)
+  const reflectiveTrial = phase === 'trial' && CAUSE.test(clean) && LEARN.test(clean)
+  const behaviorEvidence = taskOverlap > 0 || EXPLICIT_PRACTICE.test(clean) || reflectiveTrial
   const duplicate = others.some((o) => o && jaccard(tokens, tokenize(o)) >= 0.8) // copy-paste guard
 
   const criteria = {
     specificity: !duplicate && unique.size >= 8 && (TIME.test(clean) || acts.length > 0),
-    // Advisory: word overlap cannot judge subtle relevance, so it only rejects text with NO connection to the Gate's own vocabulary.
-    relevance: unique.size >= 4 && overlap >= 1,
+    relevance: unique.size >= 4 && overlap >= 1 && (!hasTaskObjective || ((objectiveOverlap > 0 || themeOverlap > 0) && behaviorEvidence)),
     awareness: CAUSE.test(clean),
     application: unique.size >= 6 && acts.length > 0,
     learning: LEARN.test(clean),
@@ -95,5 +133,5 @@ export function evaluateReflection(text, { gate, phase = 'practice', others = []
   const feedback = []
   if (duplicate) feedback.push('This looks almost the same as another reflection. Describe what was different this time.')
   for (const c of [...keys, 'relevance']) if (!criteria[c] && !feedback.includes(HINTS[c]) && !(duplicate && c === 'specificity')) feedback.push(HINTS[c])
-  return { status: accepted ? 'accepted' : 'needs-revision', score: met / CRITERIA.length, criteria, feedback: accepted ? [] : feedback, keys }
+  return { status: accepted ? 'accepted' : 'needs-revision', score: met / CRITERIA.length, criteria, feedback: accepted ? [] : feedback, keys, signals: { unique: unique.size, overlap, objectiveOverlap, taskOverlap, actions: acts.length } }
 }

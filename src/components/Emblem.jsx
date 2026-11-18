@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 
 // Gate seal: a ring of tick marks, a progress arc tied to real mastery, and the Gate's own symbol.
-export default function Emblem({ symbol, value = 0, size = 96, label }) {
+export default function Emblem({ symbol, value = 0, size = 96, label, children }) {
   const r = size / 2 - 8
   const c = 2 * Math.PI * r
   const ticks = Array.from({ length: 24 }, (_, i) => i * 15)
@@ -16,7 +16,7 @@ export default function Emblem({ symbol, value = 0, size = 96, label }) {
           strokeDasharray={c} transform={`rotate(-90 ${size / 2} ${size / 2})`} initial={{ strokeDashoffset: c }}
           animate={{ strokeDashoffset: c * (1 - Math.min(1, Math.max(0, value))) }} transition={{ duration: 1, ease: 'easeOut' }} />
       </svg>
-      <div className="absolute inset-0 grid place-items-center text-3xl" aria-hidden="true">{symbol}</div>
+      <div className="absolute inset-0 grid place-items-center text-3xl" aria-hidden={!children}>{children || symbol}</div>
     </div>
   )
 }

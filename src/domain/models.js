@@ -61,6 +61,7 @@ export function createProgress() {
     practiceMinutes: 0,
     reflections: [],
     events: [],
+    history: [],
     dailyPlans: {},
     streak: {
       current: 0,

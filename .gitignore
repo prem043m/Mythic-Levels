@@ -25,3 +25,5 @@ dist-ssr
 server/data/
 
 .env
+.env.*
+!.env.example

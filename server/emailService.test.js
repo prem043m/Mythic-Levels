@@ -22,6 +22,20 @@ test('production email configuration requires public HTTPS frontend and provider
   ])
   assert.ok(validateEmailConfig({ NODE_ENV: 'production', FRONTEND_URL: 'http://app.test', EMAIL_PROVIDER: 'resend', EMAIL_FROM: 'Mythic <no-reply@example.com>' }).includes('FRONTEND_URL must use HTTPS in production'))
   assert.ok(validateEmailConfig({ NODE_ENV: 'production', FRONTEND_URL: 'https://app.test', EMAIL_PROVIDER: 'resend', EMAIL_FROM: 'Mythic <no-reply@example.com>' }).includes('RESEND_API_KEY is required for Resend'))
+  assert.ok(validateEmailConfig({ NODE_ENV: 'production', FRONTEND_URL: 'https://app.test', EMAIL_PROVIDER: 'mock', EMAIL_FROM: 'Mythic <no-reply@example.com>' }).includes('EMAIL_PROVIDER=mock is not allowed in production'))
+  assert.ok(validateEmailConfig({ NODE_ENV: 'production', FRONTEND_URL: 'https://app.test', EMAIL_PROVIDER: 'smtp', EMAIL_FROM: 'Mythic <no-reply@example.com>', SMTP_HOST: 'mail.example.com', SMTP_PORT: 'abc' }).includes('SMTP_PORT must be an integer between 1 and 65535'))
+  assert.ok(validateEmailConfig({ NODE_ENV: 'production', FRONTEND_URL: 'https://app.test', EMAIL_PROVIDER: 'smtp', EMAIL_FROM: 'Mythic <no-reply@example.com>', SMTP_HOST: 'mail.example.com', SMTP_PORT: '587', SMTP_USER: 'mailer' }).includes('SMTP_USER and SMTP_PASS must be set together'))
+})
+
+test('mock email provider remains available outside production but fails closed in production', () => {
+  assert.equal(createEmailProvider({ NODE_ENV: 'development', EMAIL_PROVIDER: 'mock' }).kind, 'mock')
+  assert.equal(createEmailProvider({ NODE_ENV: 'test', EMAIL_PROVIDER: 'mock' }).kind, 'mock')
+  assert.throws(() => createEmailProvider({
+    NODE_ENV: 'production',
+    FRONTEND_URL: 'https://app.test',
+    EMAIL_PROVIDER: 'mock',
+    EMAIL_FROM: 'Mythic <no-reply@example.com>',
+  }), /EMAIL_PROVIDER=mock is not allowed in production/)
 })
 
 test('Resend provider surfaces provider rejection without raw request data', async () => {

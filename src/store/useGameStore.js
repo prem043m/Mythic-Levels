@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { createStorage, createLocalStorageAdapter } from '@/services/storage/storage'
 import {
   createInitialState, completeQuest, enterGate, upsertReflection,
-  deleteReflection, saveDailyPlan, validateLoadedState, ritualAction, reviseEvidence,
+  deleteReflection, saveDailyPlan, validateLoadedState, normalizeLoadedState, ritualAction, reviseEvidence, sealStage,
 } from '@/services/progression/engine'
 import { applySettings } from '@/services/settings/settings'
 import { api, getAuth, setAuth } from '@/services/api/client'
@@ -31,7 +31,7 @@ export const useGameStore = create((set, get) => ({
     if (!res.ok) return set({ status: 'error', loadError: res.error })
     if (!res.data) return set({ status: 'new' })
     if (!validateLoadedState(res.data)) return set({ status: 'error', loadError: 'invalid' })
-    set({ game: dedupe(res.data), status: 'ready' })
+    set({ game: dedupe(normalizeLoadedState(res.data)), status: 'ready' })
   },
   commit(state, { sync = true } = {}) {
     const next = dedupe(state)
@@ -44,11 +44,14 @@ export const useGameStore = create((set, get) => ({
     }
   },
   awaken(input) { get().commit(createInitialState(input)) },
-  complete(gateId, questId, reflection, durationMinutes) {
+  // `input` is a guided submission ({ submission: {...} }) or, for older callers, a plain reflection string.
+  complete(gateId, questId, input, durationMinutes) {
     const { game, commit } = get()
+    const payload = typeof input === 'string' ? { reflection: input } : input
     // Date always comes from the local clock, never from the UI.
-    const res = completeQuest(game, { gateId, questId, reflection, durationMinutes, dateKey: todayKey() })
+    const res = completeQuest(game, { gateId, questId, ...payload, durationMinutes, dateKey: todayKey() })
     if (res.ok) { commit(res.state); set({ lastResult: res }) }
+    else if (res.error === 'not-accepted') commit(res.state) // keep the draft so feedback and attempts survive a reload
     return res
   },
   enter(gateId) {
@@ -75,6 +78,15 @@ export const useGameStore = create((set, get) => ({
     const res = reviseEvidence(get().game, { gateId, day, text })
     if (res.ok) {
       get().commit(res.state)
+      if (res.ascension || Object.keys(res.rewards || {}).length) set({ lastResult: res })
+    }
+    return res
+  },
+  // Recovery seal: see sealStage. Never grants rewards; only unblocks progress after repeated non-accepted attempts.
+  seal(gateId, questId, durationMinutes) {
+    const res = sealStage(get().game, { gateId, questId, durationMinutes, dateKey: todayKey() })
+    if (res.ok) {
+      get().commit(res.state)
       if (res.ascension) set({ lastResult: res })
     }
     return res
@@ -85,7 +97,7 @@ export const useGameStore = create((set, get) => ({
     let data
     try { data = JSON.parse(text) } catch { return { ok: false, error: 'not-json' } }
     if (!validateLoadedState(data)) return { ok: false, error: 'invalid-save' }
-    get().commit(data)
+    get().commit(normalizeLoadedState(data))
     return { ok: true }
   },
   reset() {
@@ -137,7 +149,7 @@ export const useGameStore = create((set, get) => ({
     if (!r.ok) return get()._fail(r)
     if (!r.state) { get()._markReady({ revision: 0 }); set({ sync: { status: 'ok', at: null, error: null } }); return { ok: true, empty: true } }
     if (!validateLoadedState(r.state)) return get()._fail({ error: 'invalid-state' })
-    get().commit(r.state, { sync: false })
+    get().commit(normalizeLoadedState(r.state), { sync: false })
     get()._markReady({ revision: r.revision })
     set({ sync: { status: 'ok', at: r.updatedAt, error: null } })
     return r

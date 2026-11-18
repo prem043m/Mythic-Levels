@@ -12,6 +12,12 @@ export const STAGE_TEXT = [
 ]
 export const RITUAL_TEXT = 'During the sitting the strongest pull came about twenty minutes in because a message alert lit my screen. I turned the phone over and returned to my report, and I learned that naming the urge helped; next time I will put the phone in another room before I begin.'
 export const JUNK = 'aaaaaaaaaaaaaaaa'
+// Short but valid reflections (accepted, lower quality) for stages 1, 4 and 7.
+export const THIN = {
+  0: 'Today I noticed my focus breaking whenever my phone lit up, because I wanted an easy escape from my work.',
+  3: 'I put my phone away when the urge came because the task felt hard, and I kept my attention on it.',
+  6: 'Looking back, I realised my focus breaks when work gets hard because I want relief; next time I will start smaller.',
+}
 export const T0 = Date.UTC(2026, 2, 20, 9, 0, 0)
 
 export const newPlayer = () => createInitialState({ name: 'Test' })

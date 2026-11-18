@@ -14,6 +14,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    include: ['src/**/*.{test,spec}.{js,jsx}'], // server tests use Node's own runner (npm run test:server)
     setupFiles: './src/test/setup.js',
   },
 })

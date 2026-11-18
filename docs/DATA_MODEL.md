@@ -4165,21 +4165,11 @@ AI does not become authoritative game state.
 
 This document intentionally records existing limitations rather than pretending they are already solved.
 
-## 170.1 Partial validation
+## 170.1 Structural save validation
 
-`validateLoadedState()` currently checks:
+`validateLoadedState()` checks the supported version-1 save structure, including player, settings, progression containers, canonical Gate and stage references, evidence, ritual attempts, recovery records, and date and numeric fields. Validation is non-mutating. The load, import, and cloud-pull paths separately default a missing player attribute object for compatibility with older version-1 saves.
 
-```text
-schema version
-player id
-player name
-progress
-settings
-```
-
-and inserts an empty attribute object when attributes are missing.
-
-It does not exhaustively validate every nested field.
+This is structural validation only. It does not establish that client-submitted XP, rewards, stage completions, or Gate unlocks were legitimately earned; the backend is not authoritative for progression.
 
 ## 170.2 No migration system
 

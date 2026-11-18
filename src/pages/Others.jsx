@@ -4,6 +4,7 @@ import { ATTRIBUTES, AVATARS } from '@/config/constants'
 import { getGateById } from '@/data/catalog'
 import { ACHIEVEMENTS } from '@/data/achievements'
 import { Panel, H, Btn, Bar } from '@/components/ui'
+import { GateEmblem } from '@/components/ProgressionIdentity'
 
 export function Journal() {
   const { game, addReflection, removeReflection } = useGameStore()
@@ -19,7 +20,7 @@ export function Journal() {
       {list.length === 0 && <p className="text-muted">No reflections yet. Quest reflections you write appear in each Gate’s record.</p>}
       {list.map((r) => (
         <Panel key={r.id}>
-          <p className="text-xs text-muted">{r.dateKey}{r.gateId && getGateById(r.gateId) ? ` · ${getGateById(r.gateId).name}` : ''}</p>
+          <p className="text-xs text-muted">{r.dateKey}{r.gateId && getGateById(r.gateId) ? <span className="inline-progression-identity"><GateEmblem gateId={r.gateId} size="tiny" state="completed" /> · {getGateById(r.gateId).name}</span> : ''}</p>
           <p className="whitespace-pre-wrap">{r.text}</p>
           <Btn variant="ghost" className="mt-2 text-sm" onClick={() => confirm('Delete this reflection?') && removeReflection(r.id)}>Delete</Btn>
         </Panel>
@@ -66,7 +67,8 @@ export function Profile() {
       <Panel><H>Achievements ({player.achievements.length}/{ACHIEVEMENTS.length})</H>
         <ul className="grid sm:grid-cols-2 gap-2 text-sm">{ACHIEVEMENTS.map((a) => {
           const on = player.achievements.includes(a.id)
-          return <li key={a.id} className={on ? '' : 'opacity-40'}><b>{on ? '✓ ' : ''}{a.name}</b><br /><span className="text-muted">{a.description}</span></li>
+          const gateId = a.id === 'gremlin-mastered' ? 'beast-01' : a.id === 'troll-mastered' ? 'beast-02' : a.id === 'beast-complete' ? 'beast-09' : a.id === 'human-complete' ? 'human-09' : a.id === 'sage-complete' ? 'sage-09' : null
+          return <li key={a.id} className={on ? '' : 'opacity-40'}><b>{gateId && <GateEmblem gateId={gateId} size="tiny" state={on ? 'completed' : 'locked'} />}{on ? '✓ ' : ''}{a.name}</b><br /><span className="text-muted">{a.description}</span></li>
         })}</ul></Panel>
       <Panel><H>Save</H>
         <div className="flex gap-2 flex-wrap">
