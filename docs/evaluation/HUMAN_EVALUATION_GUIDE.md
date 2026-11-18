@@ -46,6 +46,8 @@ Score each dimension independently on a 0–4 scale:
 | **D — Difficulty awareness** | Is a real challenge or resistance described? |
 | **F — Reflection quality** | Is there meaningful learning or a future adjustment? |
 
+Judge the demonstrated behavior against the Gate and stage objective, not the activity category. Reusing an experience is allowed; activity words or Gate keywords alone do not establish relevance.
+
 For comparison with the engine's 0–100 dimension scores, convert each rating as:
 
 `dimension score = (human rating / 4) × 100`

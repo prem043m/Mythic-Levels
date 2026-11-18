@@ -11,6 +11,7 @@ import Emblem from '@/components/Emblem'
 import { GateEmblem } from '@/components/ProgressionIdentity'
 import RubricLive from '@/components/RubricLive'
 import { protocolFor, narrativeOf } from '@/services/evaluation/protocol'
+import { EVAL } from '@/config/evaluation'
 import { Panel, H, Btn, Bar } from '@/components/ui'
 import { ROUTES } from '@/config/routes'
 
@@ -20,7 +21,7 @@ const ERR = {
   'locked-gate': 'This Gate is still locked.',
 }
 const DIM = [['practice', 'Practice'], ['consistency', 'Consistency'], ['reflection', 'Reflection'], ['application', 'Application'], ['finalTrial', 'Final ritual']]
-const BADGE = { accepted: ['Evidence accepted', 'text-cosmic'], 'needs-revision': ['Needs revision', 'text-ember'], none: ['No reflection', 'text-muted'] }
+const BADGE = { sealed: ['Sealed as self-reported · rewards held back', 'text-muted'], accepted: ['Evidence accepted', 'text-cosmic'], 'needs-revision': ['Needs revision', 'text-ember'], none: ['No reflection', 'text-muted'] }
 
 const VERDICT = {
   NEEDS_REVISION: 'Almost there. This needs a little more.',
@@ -45,7 +46,7 @@ function Verdict({ v, attempts }) {
 }
 
 function Stage({ gate, day, rec, ev, available, limitReached }) {
-  const { complete, revise } = useGameStore()
+  const { complete, revise, seal } = useGameStore()
   const protocol = useMemo(() => protocolFor(day), [day])
   const draft = rec.drafts?.[day.day]
   const [open, setOpen] = useState(Boolean(draft))
@@ -65,6 +66,11 @@ function Stage({ gate, day, rec, ev, available, limitReached }) {
     if (res.ok) { setOpen(false); setVerdict(null); return }
     if (res.error === 'not-accepted') { setVerdict(res.evaluation); setAttempts((n) => n + 1) } else setErr(ERR[res.error] || 'Could not complete this stage.')
   }
+  const sealIt = () => {
+    setErr(null)
+    const res = seal(gate.id, day.id, day.durationMinutes)
+    if (res.ok) { setOpen(false); setVerdict(null) } else setErr(ERR[res.error] || 'Could not seal this stage.')
+  }
   const improve = () => {
     setErr(null)
     const res = revise(gate.id, day.day, text)
@@ -82,9 +88,9 @@ function Stage({ gate, day, rec, ev, available, limitReached }) {
         {done && badge && <p className={`text-xs mt-1 ${badge[1]}`}>{badge[0]}{ev.quality != null ? ` · quality ${ev.quality}` : ''}{ev.verification ? ' · self-reported' : ''}</p>}
         {done && (
           <details className="mt-2 text-sm">
-            <summary className="cursor-pointer text-muted">{ev?.status === 'needs-revision' ? 'Strengthen this reflection' : 'Improve this reflection'}</summary>
+            <summary className="cursor-pointer text-muted">{ev?.status === 'needs-revision' || ev?.status === 'sealed' ? 'Strengthen this reflection' : 'Improve this reflection'}</summary>
             <div className="mt-2 space-y-2">
-              {ev?.status === 'needs-revision' && <ul className="text-muted list-disc pl-5">{ev.feedback.map((f) => <li key={f}>{f}</li>)}</ul>}
+              {(ev?.status === 'needs-revision' || ev?.status === 'sealed') && <ul className="text-muted list-disc pl-5">{ev.feedback.map((f) => <li key={f}>{f}</li>)}</ul>}
               <textarea aria-label="Revised reflection" className="w-full rounded-lg bg-obsidian-2 border border-ancient-dim/40 p-2" rows={3} value={text} onChange={(e) => setText(e.target.value)} />
               <RubricLive text={text} gate={gate} phase={day.phase} others={others} />
               <Verdict v={verdict} attempts={0} />
@@ -110,6 +116,13 @@ function Stage({ gate, day, rec, ev, available, limitReached }) {
                   ))}
                   <RubricLive text={narrative} gate={gate} phase={day.phase} others={others} />
                   <Verdict v={verdict} attempts={attempts} />
+                  {attempts >= EVAL.recovery.attemptsBeforeSeal && (
+                    <div className="rounded-lg border border-white/15 p-3 space-y-2">
+                      <p className="text-sm">Did the activity but cannot get the wording accepted?</p>
+                      <p className="text-xs text-muted">You can seal this stage as self-reported. It counts as practice and lets you continue, but XP, attributes and mastery credit are held back until you improve the reflection later.</p>
+                      <Btn variant="ghost" onClick={sealIt}>Seal as self-reported</Btn>
+                    </div>
+                  )}
                   <p className="text-xs text-muted">Confirm only once you have really done it. Your account is self-reported: it is checked for clarity and detail, not proven.</p>
                   {err && <p role="alert" className="text-ember text-sm">{err}</p>}
                   <div className="flex gap-2"><Btn onClick={submit} disabled={!narrative.trim()}>I did it — check and seal this stage</Btn><Btn variant="ghost" onClick={() => setOpen(false)}>Not yet</Btn></div>

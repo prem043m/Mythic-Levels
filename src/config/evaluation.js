@@ -1,3 +1,5 @@
+import { fnv1a } from '@/utils/hash'
+
 // Tunable numbers of the Action Evaluation system. Each has a reason; change here, not in logic.
 // All values are PROPOSALS awaiting product approval and calibration against human-labelled data.
 export const EVAL = {
@@ -29,4 +31,11 @@ export const EVAL = {
   difficulty: { window: 2, strongQuality: 85, weakQuality: 65, scaffoldFactor: 0.5, minScaffoldMinutes: 5 },
   // Candidate ranking weights (sum 1): gate relevance, mastery need, difficulty fit, time fit, recovery fit.
   ranking: { gate: 0.15, need: 0.3, fit: 0.15, time: 0.15, recovery: 0.25 },
+  // Recovery seal: after this many non-accepted attempts a player may seal the stage as self-reported (no rewards, no mastery credit).
+  recovery: { attemptsBeforeSeal: 3 },
+  // Durable, text-free evaluation history kept in the save (newest first).
+  history: { max: 1500 },
 }
+
+// Identifies the exact scoring configuration, so every stored evaluation can be traced to the rules that produced it.
+export const EVAL_FINGERPRINT = fnv1a(JSON.stringify(EVAL))

@@ -32,18 +32,22 @@ export function evaluateGateCompletion(state, gateId) {
   }
   const n = gate.days.length
   const items = stageEvidence(gate, record).filter(Boolean)
-  // Practice days = days with a stage, an accepted revision, or a finished ritual attempt (so older, rushed saves can still recover).
-  const dates = [...items.flatMap((i) => [i.rec.completedDate, i.rec.revisedDate]), ...(record.ritual?.attempts || []).map((a) => a.finishedDate)]
+  const acceptedItems = items.filter((i) => !i.rec.sealed && i.ev.status === 'accepted')
+  // Sealed stages complete the checklist, but only accepted evidence earns practice and practice-day credit.
+  const dates = [...acceptedItems.flatMap((i) => [
+    i.rec.completedDate === i.rec.recoverySealedDate ? null : i.rec.completedDate,
+    i.rec.revisedDate,
+  ]), ...(record.ritual?.attempts || []).map((a) => a.finishedDate)]
   const distinct = new Set(dates.filter(Boolean)).size
   const minDays = Math.ceil(n / GMP.maxStagesPerDay)
-  const accepted = items.filter((i) => i.ev.status === 'accepted').length
-  const appOk = items.filter((i) => GMP.applicationPhases.includes(i.day.phase) && i.ev.status === 'accepted' && i.ev.criteria.application).length
+  const accepted = acceptedItems.length
+  const appOk = acceptedItems.filter((i) => GMP.applicationPhases.includes(i.day.phase) && i.ev.criteria.application).length
   const ritual = ritualResult(record)
 
   const signals = {
-    practice: items.length / n,
+    practice: accepted / n,
     consistency: Math.min(1, distinct / n),
-    reflection: items.reduce((s, i) => s + i.ev.score, 0) / n,
+    reflection: acceptedItems.reduce((s, i) => s + i.ev.score, 0) / n,
     application: Math.min(1, appOk / GMP.applicationPhases.length),
     finalTrial: ritual.score,
   }

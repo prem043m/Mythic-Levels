@@ -89,6 +89,7 @@ describe('Gate Mastery Protocol', () => {
     const r = playRitual(playStages(newPlayer(), gate), gate)
     expect(r.ok).toBe(true)
     const rec = r.state.progress.gates[gate.id]
+    expect(rec.ritual.attempts.some((attempt) => attempt.status === 'completed')).toBe(true)
     expect(rec.completedAt).toBeTruthy()
     expect(r.state.progress.gates['beast-02'].unlocked).toBe(true)
     expect(r.ascension.kind).toBe('gate')
@@ -130,6 +131,57 @@ describe('Gate Mastery Protocol', () => {
     const s = playStages(newPlayer(), gate)
     s.progress.gates[gate.id].bossCompletedAt = '2026-01-01T00:00:00.000Z'
     expect(evaluateGateCompletion(s, gate.id).signals.finalTrial).toBe(1)
+  })
+  it('does not let a caller-supplied ritual flag authorize a fresh boss trial', () => {
+    const state = newPlayer()
+    const before = structuredClone(state)
+    const result = completeQuest(state, { gateId: gate.id, questId: gate.bossTrial.id, viaRitual: true })
+    expect(result).toMatchObject({ ok: false, error: 'ritual-required', state })
+    expect(result.rewards).toBeUndefined()
+    expect(state).toEqual(before)
+  })
+  it('requires a completed ritual attempt after all stages, and leaves state unchanged on rejection', () => {
+    const state = playStages(newPlayer(), gate)
+    const before = structuredClone(state)
+    const result = completeQuest(state, { gateId: gate.id, questId: gate.bossTrial.id, viaRitual: true })
+    expect(result).toMatchObject({ ok: false, error: 'ritual-required', state })
+    expect(result.rewards).toBeUndefined()
+    expect(state).toEqual(before)
+  })
+  it.each(['preparing', 'active', 'paused', 'abandoned', 'failed'])(
+    'rejects a ritual attempt in %s state without changing progression',
+    (status) => {
+      const state = playStages(newPlayer(), gate)
+      state.progress.gates[gate.id].ritual = { attempts: [{ status }] }
+      const before = structuredClone(state)
+      const result = completeQuest(state, { gateId: gate.id, questId: gate.bossTrial.id, viaRitual: true })
+      expect(result).toMatchObject({ ok: false, error: 'ritual-required', state })
+      expect(result.rewards).toBeUndefined()
+      expect(state).toEqual(before)
+    },
+  )
+  it('does not authorize a Gate using a completed ritual attempt from another Gate', () => {
+    const state = newPlayer()
+    state.progress.gates['beast-02'] = {
+      unlocked: true,
+      ritual: { attempts: [{ status: 'completed' }] },
+    }
+    const before = structuredClone(state)
+    const result = completeQuest(state, { gateId: gate.id, questId: gate.bossTrial.id, viaRitual: true })
+    expect(result).toMatchObject({ ok: false, error: 'ritual-required', state })
+    expect(state).toEqual(before)
+  })
+  it('does not award boss rewards twice after a completed ritual', () => {
+    const completed = playRitual(playStages(newPlayer(), gate), gate)
+    const before = structuredClone(completed.state)
+    const duplicate = completeQuest(completed.state, {
+      gateId: gate.id,
+      questId: gate.bossTrial.id,
+      viaRitual: true,
+    })
+    expect(duplicate).toMatchObject({ ok: false, error: 'already-complete', state: completed.state })
+    expect(duplicate.rewards).toBeUndefined()
+    expect(completed.state).toEqual(before)
   })
   it('never lets a locked Gate be evaluated as progress', () => {
     expect(evaluateGateCompletion(newPlayer(), 'beast-05').status).toBe('IN_PROGRESS')

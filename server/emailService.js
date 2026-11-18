@@ -14,6 +14,7 @@ const timestamp = () => new Date().toISOString()
 const result = (provider, status, messageId, category = null) => ({
   provider, status, messageId: messageId || null, requestedAt: timestamp(), category,
 })
+const hasValue = (value) => typeof value === 'string' && value.trim().length > 0
 
 export function validateEmailConfig(env = process.env) {
   const production = env.NODE_ENV === 'production'
@@ -28,9 +29,15 @@ export function validateEmailConfig(env = process.env) {
     } catch { errors.push('FRONTEND_URL must be a valid URL') }
   }
   if (production && !provider) errors.push('EMAIL_PROVIDER is required in production')
-  if (production && !env.EMAIL_FROM) errors.push('EMAIL_FROM is required in production')
-  if (provider === 'smtp' && (!env.SMTP_HOST || !env.SMTP_PORT)) errors.push('SMTP_HOST and SMTP_PORT are required for SMTP')
-  if (provider === 'resend' && !env.RESEND_API_KEY) errors.push('RESEND_API_KEY is required for Resend')
+  if (production && provider === 'mock') errors.push('EMAIL_PROVIDER=mock is not allowed in production')
+  if (production && !hasValue(env.EMAIL_FROM)) errors.push('EMAIL_FROM is required in production')
+  if (provider === 'smtp' && (!hasValue(env.SMTP_HOST) || !hasValue(String(env.SMTP_PORT || '')))) errors.push('SMTP_HOST and SMTP_PORT are required for SMTP')
+  if (provider === 'smtp' && hasValue(String(env.SMTP_PORT || ''))
+    && (!/^\d+$/.test(String(env.SMTP_PORT)) || Number(env.SMTP_PORT) < 1 || Number(env.SMTP_PORT) > 65535)) {
+    errors.push('SMTP_PORT must be an integer between 1 and 65535')
+  }
+  if (provider === 'smtp' && hasValue(env.SMTP_USER) !== hasValue(env.SMTP_PASS)) errors.push('SMTP_USER and SMTP_PASS must be set together')
+  if (provider === 'resend' && !hasValue(env.RESEND_API_KEY)) errors.push('RESEND_API_KEY is required for Resend')
   if (provider && !['mock', 'smtp', 'resend'].includes(provider)) errors.push(`Unsupported EMAIL_PROVIDER: ${provider}`)
   return errors
 }
@@ -108,9 +115,9 @@ export function createResendEmailProvider(env = process.env) {
 
 export function createEmailProvider(env = process.env) {
   const provider = String(env.EMAIL_PROVIDER || '').trim().toLowerCase()
+  if (env.NODE_ENV === 'production') assertEmailConfig(env)
   if (provider === 'mock') return createMockEmailProvider()
   if (provider === 'smtp') return createSmtpEmailProvider(env)
   if (provider === 'resend') return createResendEmailProvider(env)
-  if (env.NODE_ENV === 'production') assertEmailConfig(env)
   return createMockEmailProvider()
 }

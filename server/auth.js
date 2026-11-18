@@ -1,4 +1,5 @@
-import { scryptSync, randomBytes, randomInt, timingSafeEqual, createHash } from 'node:crypto'
+import { scryptSync, randomBytes, randomInt, timingSafeEqual, createHash, createHmac } from 'node:crypto'
+import { DEFAULT_SESSION_TTL_SECONDS, requireOtpVerifierSecret, resolveSessionTtlSeconds } from './securityConfig.js'
 
 const sha = (s) => createHash('sha256').update(s).digest('hex')
 const hashPw = (pw, salt) => scryptSync(pw, salt, 64)
@@ -53,7 +54,12 @@ export function setEmail(db, userId, email) {
 
 export const markVerified = (db, userId) => db.prepare('update users set email_verified_at=? where id=?').run(now(), userId)
 
-export function createVerificationChallenge(db, userId, ttlMs = 10 * 60e3) {
+const otpVerifier = (secret, userId, code) => createHmac('sha256', secret)
+  .update(`mythic-levels:email-verification-otp:v1:${userId}:${code}`)
+  .digest('hex')
+
+export function createVerificationChallenge(db, userId, ttlMs = 10 * 60e3, verifierSecret = process.env.OTP_VERIFIER_SECRET) {
+  const secret = requireOtpVerifierSecret(verifierSecret)
   const otp = String(randomInt(0, 1_000_000)).padStart(6, '0')
   const raw = randomBytes(32).toString('hex')
   const sentAt = now()
@@ -62,8 +68,8 @@ export function createVerificationChallenge(db, userId, ttlMs = 10 * 60e3) {
     db.prepare('delete from email_tokens where user_id=? and purpose=?').run(userId, 'verify')
     db.prepare('insert into email_tokens(hash,user_id,purpose,expires_at) values(?,?,?,?)')
       .run(sha(raw), userId, 'verify', new Date(Date.now() + 30 * 60e3).toISOString())
-    db.prepare('insert into verification_codes(user_id,hash,expires_at,attempts,sent_at) values(?,?,?,?,?) on conflict(user_id) do update set hash=excluded.hash, expires_at=excluded.expires_at, attempts=0, sent_at=excluded.sent_at')
-      .run(userId, sha(otp), new Date(Date.now() + ttlMs).toISOString(), 0, sentAt)
+    db.prepare('insert into verification_codes(user_id,hash,expires_at,attempts,sent_at,verifier_version) values(?,?,?,?,?,1) on conflict(user_id) do update set hash=excluded.hash, expires_at=excluded.expires_at, attempts=0, sent_at=excluded.sent_at, verifier_version=1')
+      .run(userId, otpVerifier(secret, userId, otp), new Date(Date.now() + ttlMs).toISOString(), 0, sentAt)
     db.exec('commit')
   } catch (error) {
     db.exec('rollback')
@@ -81,20 +87,27 @@ export function allowVerificationRetry(db, userId) {
   db.prepare('update verification_codes set sent_at=? where user_id=?').run(new Date(0).toISOString(), userId)
 }
 
-export function consumeVerificationCode(db, userId, code) {
+export function consumeVerificationCode(db, userId, code, verifierSecret = process.env.OTP_VERIFIER_SECRET) {
+  const secret = requireOtpVerifierSecret(verifierSecret)
   const normalized = String(code || '')
   if (!/^\d{6}$/.test(normalized)) return { error: 'invalid-code' }
   db.exec('begin immediate')
   try {
-    const row = db.prepare('select hash, expires_at, attempts from verification_codes where user_id=?').get(userId)
+    const row = db.prepare('select hash, expires_at, attempts, verifier_version from verification_codes where user_id=?').get(userId)
     if (!row) { db.exec('rollback'); return { error: 'invalid-or-expired' } }
+    if (row.verifier_version !== 1) {
+      db.prepare('delete from verification_codes where user_id=?').run(userId)
+      db.exec('commit')
+      return { error: 'invalid-or-expired' }
+    }
     if (new Date(row.expires_at) <= new Date()) {
       db.prepare('delete from verification_codes where user_id=?').run(userId)
       db.exec('commit')
       return { error: 'invalid-or-expired' }
     }
     if (row.attempts >= 5) { db.exec('rollback'); return { error: 'too-many-attempts' } }
-    const matches = timingSafeEqual(Buffer.from(row.hash, 'hex'), Buffer.from(sha(normalized), 'hex'))
+    const storedVerifier = /^[a-f0-9]{64}$/.test(row.hash) ? Buffer.from(row.hash, 'hex') : Buffer.alloc(32)
+    const matches = timingSafeEqual(storedVerifier, Buffer.from(otpVerifier(secret, userId, normalized), 'hex'))
     if (!matches) {
       db.prepare('update verification_codes set attempts=attempts+1 where user_id=?').run(userId)
       db.exec('commit')
@@ -162,16 +175,27 @@ export function consumeVerificationLink(db, raw) {
   }
 }
 
-export function issueToken(db, userId) {
+export function issueToken(db, userId, sessionTtlSeconds = DEFAULT_SESSION_TTL_SECONDS) {
+  const ttl = resolveSessionTtlSeconds(sessionTtlSeconds)
   const token = randomBytes(32).toString('hex')
-  db.prepare('insert into tokens(hash,user_id,created_at) values(?,?,?)').run(sha(token), userId, now())
+  const createdAt = Date.now()
+  db.prepare('insert into tokens(hash,user_id,created_at,expires_at) values(?,?,?,?)')
+    .run(sha(token), userId, new Date(createdAt).toISOString(), new Date(createdAt + ttl * 1000).toISOString())
   return token
 }
 const bearer = (header) => /^Bearer ([a-f0-9]{64})$/.exec(header || '')?.[1]
-export function userFromAuth(db, header) {
+export function userFromAuth(db, header, nowMs = Date.now()) {
   const t = bearer(header)
   if (!t) return null
-  return toUser(db.prepare('select u.* from tokens t join users u on u.id=t.user_id where t.hash=?').get(sha(t)))
+  const hash = sha(t)
+  const row = db.prepare('select u.*, t.expires_at from tokens t join users u on u.id=t.user_id where t.hash=?').get(hash)
+  if (!row) return null
+  const expiresAt = Date.parse(row.expires_at)
+  if (!Number.isFinite(expiresAt) || expiresAt <= nowMs) {
+    db.prepare('delete from tokens where hash=?').run(hash)
+    return null
+  }
+  return toUser(row)
 }
 export function revoke(db, header) {
   const t = bearer(header)

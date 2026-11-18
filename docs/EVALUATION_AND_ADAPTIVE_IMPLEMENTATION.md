@@ -21,7 +21,8 @@ Companion to `MYTHIC_LEVELS_GAME_MECHANICS_AND_EVALUATION_SPEC_V1`. Principle ke
 Labels were written by the implementer, not independent humans. `src/test/calibration/`.
 * **Tuning set** (24 scored): agreement 100%, false acceptance 0%, false rejection 0%, abstention on too-short/incomplete 100%, paraphrase consistency 100%. Defects found with this set were fixed (so this number is optimistic by construction).
 * **Held-out set** (12, written after tuning, never tuned against): agreement **91.7%**, false acceptance **14.3%** (1 of 7), false rejection **0%**, abstention 100%.
-* **Known misses:** keyword-only relevance accepts on-topic *words* in off-topic text (held-out H6: "I focused on cooking dinner…" is accepted by the baseline; an external semantic proposal catches it, see test); contradictions and implausible claims need real language understanding (case X1, reported but excluded from the thresholds).
+* **Regression fixes:** Gate relevance now requires practice-task evidence in addition to shared vocabulary; H19's explicitly unstarted task is not treated as completed action; opposing claims across guided fields require clarification while temporal sequences remain valid. Regression tests cover the original cooking false acceptance and a separate keyword-only off-topic control.
+* **Remaining limit:** relevance and consistency are still deterministic lexical heuristics, not semantic verification. The calibration metrics above are the previously documented snapshot; rerun against independent human labels before using them to claim improved accuracy. Implausible durations and nuanced paraphrases remain limited.
 Before production: replace with a human-labelled set, measure false-accept/false-reject per language and length, and benchmark any LLM provider against it.
 
 ## Changes found and fixed while building

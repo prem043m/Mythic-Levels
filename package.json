@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "verify": "npm run lint && npm test && npm run test:server && npm run build",
     "server": "node --no-warnings --env-file-if-exists=.env --import ./server/register.mjs server/index.js",
     "test:server": "node --no-warnings --import ./server/register.mjs --test server/server.test.js server/mailer.test.js server/emailService.test.js"
   },

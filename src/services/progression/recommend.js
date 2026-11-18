@@ -40,7 +40,7 @@ export function rankCandidates(state, today = todayKey()) {
   const adapt = adaptDifficulty(observations)
   const draft = stage ? record.drafts?.[stage.day] : null
   const todayCount = done.filter((d) => record.days[d.day].completedDate === today).length
-  const legacy = gate.days.map((d) => ({ d, e: ev.evidence[d.day] })).find((x) => x.e?.status === 'needs-revision' && !x.e.quality)
+  const legacy = gate.days.map((d) => ({ d, e: ev.evidence[d.day] })).find((x) => (x.e?.status === 'needs-revision' && !x.e.quality) || x.e?.status === 'sealed')
   const needsRecovery = away >= 3 || adapt.offset < 0 || (draft?.attempts || 0) >= 2
   const playerOffset = Math.min(adapt.offset, 0) // a stretch is never applied automatically
   const recent = done.slice(-3).map((d) => ({ d, e: ev.evidence[d.day] })).filter((x) => x.e && x.e.status !== 'none')
@@ -75,7 +75,7 @@ export function rankCandidates(state, today = todayKey()) {
     }
   }
   if (legacy && !record.completedAt) {
-    out.push({ ...base, id: 'revise', kind: 'revise', title: `Strengthen your Day ${legacy.d.day} reflection`, minutes: 5, baseMinutes: 5, stageDay: legacy.d.day, difficulty: 0, need: 0.8, gentle: false, reason: legacy.e.feedback?.[0] || 'This reflection needs one more detail to count as evidence.' })
+    out.push({ ...base, id: 'revise', kind: 'revise', title: `Strengthen your Day ${legacy.d.day} reflection`, minutes: 5, baseMinutes: 5, stageDay: legacy.d.day, difficulty: 0, need: 0.8, gentle: false, reason: legacy.e.status === 'sealed' ? 'This stage was sealed as self-reported. Improving the reflection releases the rewards held back.' : (legacy.e.feedback?.[0] || 'This reflection needs one more detail to count as evidence.') })
   }
 
   const W = EVAL.ranking
